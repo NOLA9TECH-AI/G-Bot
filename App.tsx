@@ -32,8 +32,10 @@ const App: React.FC = () => {
   const [robotStyle, setRobotStyle] = useState<RobotStyle>(RobotStyle.STEALTH); 
   const [artStyle, setArtStyle] = useState<ArtStyle>(ArtStyle.STREET);
   const [robotSize, setRobotSize] = useState(1.0);
+  const [transcriptionFontSize, setTranscriptionFontSize] = useState(48);
   const [robotMood, setRobotMood] = useState<RobotVisualMood>(RobotVisualMood.NONE);
   const [isChatVisible, setIsChatVisible] = useState(false);
+  const [isMobileControlsOpen, setIsMobileControlsOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   const [themeSaveStatus, setThemeSaveStatus] = useState<'idle' | 'saved'>('idle');
   
@@ -51,6 +53,22 @@ const App: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (isLoading) {
+      setRobotMood(RobotVisualMood.LOADING);
+    } else if (isBotTalking) {
+      setRobotMood(RobotVisualMood.TALKING);
+    } else {
+      setRobotMood(RobotVisualMood.NONE);
+    }
+  }, [isLoading, isBotTalking]);
+
+  useEffect(() => {
+    if (isBotTalking) {
+      robotRef.current?.triggerAnimation(RobotAnimation.YES);
+    }
+  }, [isBotTalking]);
+
+  useEffect(() => {
     const saved = localStorage.getItem('g3_chat_history');
     if (saved) {
       try {
@@ -66,16 +84,6 @@ const App: React.FC = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, liveBotTranscription, isChatVisible]);
-
-  useEffect(() => {
-    if (isLoading) {
-      setRobotMood(RobotVisualMood.LOADING);
-    } else if (isBotTalking) {
-      setRobotMood(RobotVisualMood.TALKING);
-    } else {
-      setRobotMood(RobotVisualMood.NONE);
-    }
-  }, [isLoading, isBotTalking]);
 
   const saveToLocalStorage = () => {
     localStorage.setItem('g3_chat_history', JSON.stringify(messages));
@@ -123,15 +131,7 @@ const App: React.FC = () => {
 
     try {
       const callbacks: LiveCallbacks = {
-        onAudioChunk: () => {
-          // DECISIVE FIX: We only set the talking state. 
-          // We do NOT trigger animations here anymore to save main-thread bandwidth for audio.
-          if (!isBotTalking) {
-            setIsBotTalking(true);
-            // Just a single nod at the start of a turn, not every packet.
-            robotRef.current?.triggerAnimation(RobotAnimation.YES);
-          }
-        },
+        onAudioChunk: () => setIsBotTalking(true),
         onInterrupted: () => {
           setIsBotTalking(false);
           setLiveBotTranscription(' [ INTERRUPTED ] ');
@@ -155,8 +155,6 @@ const App: React.FC = () => {
               setMessages(prev => prev.map(m => m.id === activeBotMsgIdRef.current ? { ...m, text } : m));
             }
           }
-          // Throttled emote detection
-          if (text.length % 5 === 0) detectKeywordEmotes(text);
         },
         onToolCall: async (functionCalls) => {
           for (const fc of functionCalls) {
@@ -164,6 +162,7 @@ const App: React.FC = () => {
             if (fc.name === 'toggle_command_window') setIsChatVisible(fc.args.visible);
             if (fc.name === 'set_system_theme') setTheme(fc.args.theme as SystemTheme);
             if (fc.name === 'set_robot_scale') setRobotSize(Math.max(0.5, Math.min(2.0, fc.args.scale)));
+            if (fc.name === 'set_transcription_size') setTranscriptionFontSize(Math.max(12, Math.min(120, fc.args.size)));
             if (fc.name === 'trigger_emote') robotRef.current?.triggerAnimation(fc.args.emote as RobotAnimation);
             if (fc.name === 'set_art_style') setArtStyle(fc.args.style as ArtStyle);
           }
@@ -186,19 +185,10 @@ const App: React.FC = () => {
     }
   };
 
-  const detectKeywordEmotes = (text: string) => {
-    const low = text.toLowerCase();
-    if (low.includes("celebrate") || low.includes("victory")) robotRef.current?.triggerAnimation(RobotAnimation.CELEBRATE);
-    else if (low.includes("ponder") || low.includes("think")) robotRef.current?.triggerAnimation(RobotAnimation.PONDER);
-    else if (low.includes("alert") || low.includes("danger")) robotRef.current?.triggerAnimation(RobotAnimation.ALERT);
-    else if (low.includes("flex") || low.includes("muscle")) robotRef.current?.triggerAnimation(RobotAnimation.FLEX);
-  };
-
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
     const userMsg: ChatMessage = { id: Date.now().toString(), role: MessageRole.USER, text: inputText };
     setMessages(prev => [...prev, userMsg]);
-    detectKeywordEmotes(inputText);
     setInputText('');
     setIsLoading(true);
 
@@ -283,26 +273,13 @@ const App: React.FC = () => {
         const lang = match?.[1] || 'sh';
         const code = match?.[2] || '';
         return (
-          <div key={i} className="my-2 group/code relative rounded-xl overflow-hidden border-2 bg-black/80 font-mono text-[12px] md:text-[13px]" style={{ borderColor: accentColor + '44' }}>
-            <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5">
-              <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">{lang} TERMINAL</span>
-              <button 
-                onClick={() => navigator.clipboard.writeText(code)}
-                className="text-[9px] font-bold uppercase opacity-60 hover:opacity-100 transition-opacity flex items-center gap-1"
-                style={{ color: accentColor }}
-              >
-                <span>[</span> COPY <span>]</span>
-              </button>
+          <div key={i} className="my-2 group/code relative rounded-xl overflow-hidden border-2 bg-black/80 font-mono text-[11px] md:text-[13px]" style={{ borderColor: accentColor + '44' }}>
+            <div className="flex items-center justify-between px-3 py-1 bg-white/5 border-b border-white/5">
+              <span className="text-[8px] font-bold uppercase tracking-widest opacity-40">{lang}</span>
+              <button onClick={() => navigator.clipboard.writeText(code)} className="text-[8px] font-bold uppercase opacity-60" style={{ color: accentColor }}>COPY</button>
             </div>
-            <pre className="p-3 overflow-x-auto whitespace-pre custom-scrollbar scrollbar-horizontal">
-              <code className="block" style={{ color: accentColor }}>
-                {code.split('\n').map((line, j) => (
-                  <div key={j} className="flex gap-3">
-                    <span className="opacity-20 select-none text-right w-3">{j + 1}</span>
-                    <span>{line}</span>
-                  </div>
-                ))}
-              </code>
+            <pre className="p-2 overflow-x-auto whitespace-pre custom-scrollbar">
+              <code className="block" style={{ color: accentColor }}>{code}</code>
             </pre>
           </div>
         );
@@ -313,90 +290,48 @@ const App: React.FC = () => {
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black text-white selection:bg-neon-green selection:text-black flex flex-col">
-      {/* Background Robot Layer */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         <RobotCanvas ref={robotRef} style={robotStyle} size={robotSize} mood={robotMood} theme={theme} />
       </div>
 
-      {/* Full-screen UI Overlays */}
       <div className="relative z-10 flex-1 flex flex-col p-4 md:p-8 pointer-events-none h-full overflow-hidden">
-        
-        {/* Header Section */}
-        <header className="pointer-events-auto flex justify-between items-start w-full mb-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="font-marker text-2xl md:text-5xl -rotate-1 origin-left transition-colors duration-500 neon-text" style={{ color: accentColor }}>{theme.toUpperCase()}</h1>
-            <p className="text-[9px] md:text-xs font-bold tracking-widest uppercase opacity-80" style={{ color: secondaryColor }}>// COMPANION CORE</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <button onClick={toggleTheme} className="px-2 py-1 rounded border font-bold text-[8px] tracking-widest uppercase hover:bg-white hover:text-black transition-all" style={{ color: accentColor, borderColor: accentColor }}>🔄 STYLE</button>
-              <button onClick={saveThemeToLocalStorage} className={`px-2 py-1 rounded border font-bold text-[8px] tracking-widest uppercase transition-all ${themeSaveStatus === 'saved' ? 'bg-white text-black' : 'hover:bg-white hover:text-black'}`} style={{ color: themeSaveStatus === 'saved' ? 'black' : secondaryColor, borderColor: secondaryColor }}>{themeSaveStatus === 'saved' ? '🔒 LOCKED' : '💾 SAVE'}</button>
-            </div>
+        <header className="pointer-events-auto flex justify-between items-start w-full mb-2">
+          <div className="flex flex-col gap-0.5">
+            <h1 className="font-marker text-xl md:text-5xl -rotate-1 origin-left transition-colors duration-500 neon-text" style={{ color: accentColor }}>{theme.toUpperCase()}</h1>
+            <p className="text-[7px] md:text-xs font-bold tracking-widest uppercase opacity-80" style={{ color: secondaryColor }}>// G-3 CORE</p>
           </div>
-          
-          <button onClick={toggleLiveVoice} className={`flex items-center gap-2 px-4 py-2 md:px-6 md:py-3 rounded-full border-2 font-bold transition-all duration-300 pointer-events-auto shadow-lg text-xs md:text-base ${isLiveActive ? 'bg-red-600 border-red-400 animate-pulse text-white' : 'bg-black/50 hover:bg-white hover:text-black'}`} style={!isLiveActive ? { borderColor: accentColor, color: accentColor } : {}}>
+          <button onClick={toggleLiveVoice} className={`flex items-center gap-2 px-3 py-1.5 md:px-6 md:py-3 rounded-full border-2 font-bold transition-all duration-300 pointer-events-auto shadow-lg text-[10px] md:text-base ${isLiveActive ? 'bg-red-600 border-red-400 animate-pulse text-white' : 'bg-black/50 hover:bg-white hover:text-black'}`} style={!isLiveActive ? { borderColor: accentColor, color: accentColor } : {}}>
             <span>{isLiveActive ? '⏹' : '🎤'}</span>
-            <span className="hidden sm:inline">{isLiveActive ? 'DISCONNECT' : 'GEMINI LIVE'}</span>
+            <span className="hidden xs:inline">{isLiveActive ? 'STOP' : 'LIVE'}</span>
           </button>
         </header>
 
-        {/* Sidebar - Desktop Only */}
+        {/* Desktop Sidebar remains */}
         <aside className="absolute right-8 top-32 w-48 pointer-events-auto hidden lg:block space-y-4">
           <div className="bg-black/60 border rounded-2xl p-4 backdrop-blur-md space-y-4" style={{ borderColor: secondaryColor + '44' }}>
             <div>
               <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Robot Scale</label>
               <input type="range" min="0.5" max="2" step="0.1" value={robotSize} onChange={(e) => setRobotSize(parseFloat(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white" />
             </div>
-            
+            <div>
+              <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Text Scale</label>
+              <input type="range" min="12" max="120" step="1" value={transcriptionFontSize} onChange={(e) => setTranscriptionFontSize(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white" />
+            </div>
             <div className="relative">
               <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Art Engine</label>
-              <div className="relative">
-                <select 
-                  value={artStyle} 
-                  onChange={(e) => setArtStyle(e.target.value as ArtStyle)} 
-                  className="w-full bg-black/80 border rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none appearance-none cursor-pointer pr-8 hover:bg-black transition-colors"
-                  style={{ color: secondaryColor, borderColor: secondaryColor + '44' }}
-                >
-                  {Object.values(ArtStyle).map(s => (
-                    <option key={s} value={s} className="bg-zinc-900 text-white font-mono">{s.toUpperCase()}</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[8px]" style={{ color: secondaryColor }}>▼</div>
-              </div>
+              <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-black/80 border rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none" style={{ color: secondaryColor, borderColor: secondaryColor + '44' }}>
+                {Object.values(ArtStyle).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+              </select>
             </div>
-
             <div className="relative">
-              <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Neural Emotes</label>
-              <div className="relative">
-                <select 
-                  onChange={(e) => {
-                    const val = e.target.value as RobotAnimation;
-                    if (val) robotRef.current?.triggerAnimation(val);
-                  }} 
-                  className="w-full bg-black/80 border rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none appearance-none cursor-pointer pr-8 hover:bg-black transition-colors"
-                  style={{ color: secondaryColor, borderColor: secondaryColor + '44' }}
-                  defaultValue=""
-                >
-                  <option value="" disabled className="bg-zinc-900 text-white/40">SELECT EMOTE</option>
-                  <optgroup label="ACTIONS" className="bg-zinc-900 text-white/60">
-                    <option value={RobotAnimation.GREET}>GREETING</option>
-                    <option value={RobotAnimation.DANCE}>PARTY MODE</option>
-                    <option value={RobotAnimation.FLEX}>FLEX MUSCLE</option>
-                    <option value={RobotAnimation.WAVE}>SAY HI</option>
-                  </optgroup>
-                  <optgroup label="EMOTIONS" className="bg-zinc-900 text-white/60">
-                    <option value={RobotAnimation.CELEBRATE}>VICTORY</option>
-                    <option value={RobotAnimation.PONDER}>THINKING</option>
-                    <option value={RobotAnimation.SHOCK}>SURPRISE</option>
-                    <option value={RobotAnimation.SULK}>DISAPPOINTED</option>
-                  </optgroup>
-                  <optgroup label="SYSTEM" className="bg-zinc-900 text-white/60">
-                    <option value={RobotAnimation.ALERT}>SECURITY ALERT</option>
-                    <option value={RobotAnimation.SHUTDOWN}>GO OFFLINE</option>
-                    <option value={RobotAnimation.YES}>AFFIRMATIVE</option>
-                    <option value={RobotAnimation.NO}>NEGATIVE</option>
-                  </optgroup>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[8px]" style={{ color: secondaryColor }}>▼</div>
-              </div>
+              <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Emotes</label>
+              <select onChange={(e) => { const val = e.target.value as RobotAnimation; if (val) robotRef.current?.triggerAnimation(val); }} className="w-full bg-black/80 border rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none" style={{ color: secondaryColor, borderColor: secondaryColor + '44' }} defaultValue="">
+                <option value="" disabled>SELECT EMOTE</option>
+                <option value={RobotAnimation.GREET}>HI</option>
+                <option value={RobotAnimation.DANCE}>PARTY</option>
+                <option value={RobotAnimation.FLEX}>FLEX</option>
+                <option value={RobotAnimation.CELEBRATE}>VICTORY</option>
+              </select>
             </div>
           </div>
         </aside>
@@ -404,98 +339,103 @@ const App: React.FC = () => {
         {/* Live Transcription Overlay */}
         {isLiveActive && liveBotTranscription && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 px-6 pb-20">
-            <div className="max-w-4xl w-full text-center">
-              <p className="cool-spoken-words font-marker text-2xl md:text-5xl leading-tight" style={{ backgroundImage: `linear-gradient(to right, ${accentColor}, #fff, ${secondaryColor})`, textShadow: `0 0 15px ${accentColor}66` }}>{liveBotTranscription}</p>
+            <div className="max-w-6xl w-full text-center">
+              <p className="cool-spoken-words font-marker leading-tight transition-all duration-300" style={{ backgroundImage: `linear-gradient(to right, ${accentColor}, #fff, ${secondaryColor})`, textShadow: `0 0 15px ${accentColor}66`, fontSize: `${transcriptionFontSize}px` }}>
+                {liveBotTranscription}
+              </p>
             </div>
           </div>
         )}
 
-        {/* Chat Component */}
-        <div className="mt-auto w-full flex flex-col items-center justify-end pointer-events-none">
-          {!isChatVisible && (
-            <div className="mb-4 pointer-events-auto px-4 lg:hidden w-full max-w-xs flex flex-col gap-2">
-               <div className="relative">
-                <select 
-                  value={artStyle} 
-                  onChange={(e) => setArtStyle(e.target.value as ArtStyle)} 
-                  className="w-full bg-black/60 backdrop-blur-md border rounded-full px-4 py-2 text-[10px] font-bold uppercase focus:outline-none appearance-none cursor-pointer text-center"
-                  style={{ color: accentColor, borderColor: accentColor + '44' }}
-                >
-                  {Object.values(ArtStyle).map(s => (
-                    <option key={s} value={s} className="bg-zinc-900 text-white">{s.toUpperCase()} MODE</option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[8px]" style={{ color: accentColor }}>▼</div>
-              </div>
-              
-              <div className="relative">
-                <select 
-                  onChange={(e) => {
-                    const val = e.target.value as RobotAnimation;
-                    if (val) robotRef.current?.triggerAnimation(val);
-                  }} 
-                  className="w-full bg-black/60 backdrop-blur-md border rounded-full px-4 py-2 text-[10px] font-bold uppercase focus:outline-none appearance-none cursor-pointer text-center"
-                  style={{ color: accentColor, borderColor: accentColor + '44' }}
-                  defaultValue=""
-                >
-                  <option value="" disabled className="bg-zinc-900 text-white/40">EMOTE</option>
-                  <option value={RobotAnimation.CELEBRATE}>VICTORY</option>
-                  <option value={RobotAnimation.DANCE}>DANCE</option>
-                  <option value={RobotAnimation.FLEX}>FLEX</option>
-                  <option value={RobotAnimation.SHOCK}>SHOCK</option>
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[8px]" style={{ color: accentColor }}>▼</div>
-              </div>
-            </div>
-          )}
-
-          {isChatVisible ? (
-            <main className="w-full max-w-4xl flex flex-col pointer-events-auto animate-[floatUp_0.3s_ease-out] overflow-hidden max-h-[80dvh] md:max-h-[85dvh] lg:max-h-[80dvh] mb-4">
-              <div className="bg-black/90 border-2 rounded-t-[2rem] p-4 md:p-6 flex flex-col backdrop-blur-3xl shadow-2xl relative border-b-0" style={{ borderColor: accentColor }}>
+        {/* Mobile Unified Control Bottom Drawer */}
+        <div className="mt-auto w-full flex flex-col items-center justify-end pointer-events-none pb-4">
+          <div className="lg:hidden flex flex-col items-center w-full max-w-sm pointer-events-auto">
+            {isMobileControlsOpen && (
+              <div className="w-full bg-black/80 backdrop-blur-3xl border-2 rounded-3xl p-5 mb-4 shadow-2xl space-y-5 animate-[floatUp_0.2s_ease-out]" style={{ borderColor: accentColor + '66' }}>
+                <div className="flex justify-between items-center mb-1">
+                  <h3 className="text-[10px] font-bold tracking-[0.2em] uppercase" style={{ color: accentColor }}>SYSTEM CONFIG</h3>
+                  <button onClick={toggleTheme} className="text-[8px] border px-2 py-0.5 rounded-full uppercase" style={{ color: secondaryColor, borderColor: secondaryColor }}>{theme}</button>
+                </div>
                 
-                {/* Chat Header Actions */}
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5 shrink-0">
-                  <div className="flex gap-2">
-                    <button onClick={saveToLocalStorage} className="px-2 py-0.5 rounded border text-[8px] font-bold uppercase transition-all hover:bg-white hover:text-black" style={{ color: accentColor, borderColor: accentColor }}>{saveStatus === 'saved' ? 'SAVED' : 'SAVE'}</button>
-                    <button onClick={clearHistory} className="px-2 py-0.5 rounded border text-[8px] font-bold uppercase hover:bg-red-600 hover:text-white transition-all" style={{ color: '#ff4444', borderColor: '#ff4444' }}>PURGE</button>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[8px] font-bold uppercase opacity-60" style={{ color: accentColor }}>
+                      <span>Robot Scale</span>
+                      <span>{robotSize.toFixed(1)}x</span>
+                    </div>
+                    <input type="range" min="0.5" max="2" step="0.1" value={robotSize} onChange={(e) => setRobotSize(parseFloat(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none accent-white" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <select 
-                      value={artStyle} 
-                      onChange={(e) => setArtStyle(e.target.value as ArtStyle)}
-                      className="bg-transparent border-0 text-[10px] font-bold uppercase focus:outline-none cursor-pointer text-right pr-4"
-                      style={{ color: accentColor }}
-                    >
-                      {Object.values(ArtStyle).map(s => (
-                        <option key={s} value={s} className="bg-zinc-900 text-white">{s.toUpperCase()}</option>
-                      ))}
-                    </select>
-                    <button onClick={() => setIsChatVisible(false)} className="rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border hover:bg-white hover:text-black" style={{ color: accentColor, borderColor: accentColor }}>✕</button>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[8px] font-bold uppercase opacity-60" style={{ color: secondaryColor }}>
+                      <span>Text Scale</span>
+                      <span>{transcriptionFontSize}px</span>
+                    </div>
+                    <input type="range" min="12" max="120" step="1" value={transcriptionFontSize} onChange={(e) => setTranscriptionFontSize(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none accent-white" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-bold uppercase opacity-40">Art Engine</span>
+                      <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-[9px] font-bold uppercase focus:outline-none">
+                        {Object.values(ArtStyle).map(s => <option key={s} value={s} className="bg-zinc-900">{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-bold uppercase opacity-40">Emote</span>
+                      <select onChange={(e) => { const val = e.target.value as RobotAnimation; if (val) robotRef.current?.triggerAnimation(val); }} className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-[9px] font-bold uppercase focus:outline-none" defaultValue="">
+                        <option value="" disabled className="bg-zinc-900">SELECT</option>
+                        <option value={RobotAnimation.GREET} className="bg-zinc-900">HI</option>
+                        <option value={RobotAnimation.DANCE} className="bg-zinc-900">DANCE</option>
+                        <option value={RobotAnimation.FLEX} className="bg-zinc-900">FLEX</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
+                <div className="flex justify-center pt-2 gap-3">
+                  <button onClick={saveThemeToLocalStorage} className="text-[8px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border border-white/20 hover:bg-white hover:text-black transition-all">SAVE THEME</button>
+                  <button onClick={() => setIsMobileControlsOpen(false)} className="text-[8px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full bg-white text-black">CLOSE</button>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex gap-2 w-full px-4 mb-2">
+              <button onClick={() => setIsMobileControlsOpen(!isMobileControlsOpen)} className={`flex-1 bg-black/80 backdrop-blur-xl border-2 font-bold py-3 rounded-2xl text-[10px] tracking-widest uppercase transition-all shadow-xl ${isMobileControlsOpen ? 'border-white text-white' : ''}`} style={!isMobileControlsOpen ? { color: accentColor, borderColor: accentColor + '44' } : {}}>
+                {isMobileControlsOpen ? '⚙ CONFIG ACTIVE' : '⚙ SYSTEM CONFIG'}
+              </button>
+              <button onClick={() => setIsChatVisible(true)} className="flex-1 bg-black/90 border-2 font-marker text-sm py-3 rounded-2xl tracking-[0.2em] uppercase shadow-xl" style={{ color: accentColor, borderColor: accentColor }}>
+                NEURAL LINK
+              </button>
+            </div>
+          </div>
 
-                {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-2 min-h-[100px]">
+          {isChatVisible && (
+            <main className="fixed inset-x-0 bottom-0 z-50 w-full max-w-4xl mx-auto flex flex-col pointer-events-auto animate-[floatUp_0.3s_ease-out] overflow-hidden h-[95dvh] lg:h-[80dvh] bg-black/95 lg:bg-transparent lg:relative lg:mb-4">
+              <div className="flex-1 bg-black/90 lg:border-2 lg:rounded-[2rem] p-4 flex flex-col backdrop-blur-3xl shadow-2xl relative border-t-2 border-white/10 lg:border-accent" style={{ borderColor: accentColor }}>
+                
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
+                  <div className="flex gap-2 items-center">
+                    <h2 className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>NEURAL COMMAND</h2>
+                    <button onClick={saveToLocalStorage} className="text-[8px] border px-2 py-0.5 rounded uppercase" style={{ color: accentColor, borderColor: accentColor }}>{saveStatus === 'saved' ? 'LOCKED' : 'SAVE'}</button>
+                  </div>
+                  <button onClick={() => setIsChatVisible(false)} className="rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border hover:bg-white hover:text-black" style={{ color: accentColor, borderColor: accentColor }}>✕</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-1 space-y-4 custom-scrollbar pb-4 no-scrollbar">
                   {messages.map((msg) => (
                     <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'}`}>
                       {msg.role === MessageRole.SYSTEM ? (
-                        <div className="w-full text-center my-1 opacity-40">
-                          <span className="text-[8px] font-bold uppercase tracking-[0.3em]">{msg.text}</span>
-                        </div>
+                        <div className="w-full text-center my-1 opacity-40"><span className="text-[7px] font-bold uppercase tracking-[0.3em]">{msg.text}</span></div>
                       ) : (
-                        <div className={`group relative max-w-[95%] md:max-w-[85%] rounded-2xl px-4 py-2.5 text-[14px] font-medium transition-all ${msg.role === MessageRole.USER ? 'bg-white/5 border-r-2 rounded-tr-none' : 'bg-white/10 border-l-2 rounded-tl-none'}`} style={msg.role === MessageRole.USER ? { borderColor: secondaryColor } : { borderColor: accentColor, color: accentColor }}>
+                        <div className={`group relative max-w-[92%] md:max-w-[85%] rounded-2xl px-4 py-3 text-[13px] md:text-[14px] font-medium transition-all ${msg.role === MessageRole.USER ? 'bg-white/5 border-r-2 rounded-tr-none' : 'bg-white/10 border-l-2 rounded-tl-none'}`} style={msg.role === MessageRole.USER ? { borderColor: secondaryColor } : { borderColor: accentColor, color: accentColor }}>
                           <div className="flex flex-col gap-1 overflow-hidden">
                             {renderMessageContent(msg.text)}
                             {msg.imageUrl && (
-                              <div className="mt-2 overflow-hidden rounded-lg border border-white/10 max-h-[200px]">
-                                <img src={msg.imageUrl} className="w-full h-full object-cover cursor-zoom-in" onClick={() => setImagePreviewUrl(msg.imageUrl || null)}/>
+                              <div className="mt-2 overflow-hidden rounded-lg border border-white/10 max-h-[220px]">
+                                <img src={msg.imageUrl} className="w-full h-full object-cover" onClick={() => setImagePreviewUrl(msg.imageUrl || null)}/>
                               </div>
                             )}
-                            {msg.sources && msg.sources.length > 0 && (
+                            {msg.sources && (
                               <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap gap-1">
-                                {msg.sources.map((s, idx) => (
-                                  <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[9px] px-1.5 py-0.5 rounded border border-white/10 hover:bg-white/10" style={{ color: accentColor }}>{s.title}</a>
-                                ))}
+                                {msg.sources.map((s, idx) => <a key={idx} href={s.uri} target="_blank" className="text-[8px] px-1.5 py-0.5 rounded border border-white/10" style={{ color: accentColor }}>{s.title}</a>)}
                               </div>
                             )}
                           </div>
@@ -506,97 +446,32 @@ const App: React.FC = () => {
                   <div ref={chatEndRef} />
                 </div>
 
-                {/* Input Area */}
-                <div className="mt-4 flex gap-2 items-center shrink-0">
-                  <input 
-                    type="text" 
-                    value={inputText} 
-                    onChange={(e) => setInputText(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
-                    placeholder="COMMAND..." 
-                    className="flex-1 bg-white/5 border rounded-xl px-4 py-3 text-sm focus:outline-none placeholder:opacity-20 font-mono" 
-                    style={{ color: accentColor, borderColor: accentColor + '44' }} 
-                  />
-                  
-                  <button 
-                    onClick={handleSendMessage} 
-                    disabled={isLoading} 
-                    className="font-bold px-4 py-3 rounded-xl text-[10px] md:text-xs active:scale-95 text-black flex items-center gap-1.5 shadow-lg transition-transform" 
-                    style={{ backgroundColor: accentColor }}
-                  >
-                    <span>EXEC</span>
-                    <span className="text-sm">⚡</span>
-                  </button>
-                  
-                  <button 
-                    onClick={handleGenerateArt} 
-                    disabled={isLoading} 
-                    title={`Generate ${artStyle} art`} 
-                    className="font-bold px-4 py-3 rounded-xl text-[10px] md:text-xs active:scale-95 shadow-lg flex items-center gap-1.5 transition-transform" 
-                    style={{ backgroundColor: secondaryColor }}
-                  >
-                    <span>GEN</span>
-                    <span className="text-sm">🎨</span>
-                  </button>
+                <div className="mt-4 flex gap-2 items-center pb-2">
+                  <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="SYSTEM COMMAND..." className="flex-1 bg-white/5 border rounded-2xl px-4 py-3 text-sm focus:outline-none font-mono" style={{ color: accentColor, borderColor: accentColor + '44' }} />
+                  <button onClick={handleSendMessage} disabled={isLoading} className="font-bold p-3 rounded-2xl text-[9px] text-black shadow-lg" style={{ backgroundColor: accentColor }}>⚡ EXEC</button>
+                  <button onClick={handleGenerateArt} disabled={isLoading} className="font-bold p-3 rounded-2xl text-[9px] text-white shadow-lg" style={{ backgroundColor: secondaryColor }}>🎨 GEN</button>
                 </div>
               </div>
             </main>
-          ) : (
-            <button onClick={() => setIsChatVisible(true)} className="bg-black/90 pointer-events-auto font-bold px-8 py-3 md:px-12 md:py-4 rounded-full border-2 font-marker text-base md:text-xl tracking-widest uppercase shadow-xl hover:scale-105 active:scale-95 mb-6 md:mb-10" style={{ color: accentColor, borderColor: accentColor }}>NEURAL LINK</button>
           )}
         </div>
       </div>
 
-      {/* Full-screen Image Preview Modal */}
       {imagePreviewUrl && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 md:p-10 animate-in fade-in zoom-in duration-300">
-          
-          <button 
-            onClick={() => setImagePreviewUrl(null)} 
-            className="fixed top-6 right-6 md:top-10 md:right-10 z-[120] flex flex-col items-center gap-1 group pointer-events-auto"
-            aria-label="Close Preview"
-          >
-            <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-red-600 border-4 border-white flex items-center justify-center text-3xl md:text-4xl text-white font-bold shadow-[0_0_30px_rgba(220,38,38,0.8)] group-hover:scale-110 group-active:scale-90 transition-all">
-              ✕
-            </div>
-            <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-white drop-shadow-md">CLOSE</span>
+          <button onClick={() => setImagePreviewUrl(null)} className="fixed top-6 right-6 z-[120] flex flex-col items-center gap-1 group">
+            <div className="w-12 h-12 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-xl text-white font-bold shadow-lg">✕</div>
           </button>
-
-          <div className="relative max-w-4xl w-full flex flex-col items-center gap-4 pointer-events-auto">
-            
-            <div className="bg-black p-2 border-4 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full relative" style={{ borderColor: accentColor }}>
-              
-              <img 
-                src={imagePreviewUrl} 
-                className="w-full h-auto max-h-[70dvh] object-contain rounded-2xl" 
-                alt="Preview" 
-              />
-              
-              <div className="flex w-full mt-2 gap-2">
-                <div className="flex-1 text-black py-4 px-6 font-marker text-lg uppercase flex items-center justify-center rounded-bl-2xl shadow-inner" style={{ backgroundColor: accentColor }}>
-                  {artStyle.toUpperCase()} MURAL
-                </div>
-                <button 
-                  onClick={handleDownloadImage}
-                  className="bg-white text-black py-4 px-8 font-bold text-sm uppercase rounded-br-2xl hover:bg-gray-200 active:scale-95 transition-all flex items-center gap-3 shadow-lg"
-                >
-                  <span className="text-2xl">💾</span> DOWNLOAD
-                </button>
+          <div className="relative max-w-4xl w-full flex flex-col items-center gap-4">
+            <div className="bg-black p-1 border-2 rounded-3xl overflow-hidden shadow-2xl w-full" style={{ borderColor: accentColor }}>
+              <img src={imagePreviewUrl} className="w-full h-auto max-h-[75dvh] object-contain rounded-2xl" />
+              <div className="flex w-full mt-1 gap-1">
+                <div className="flex-1 text-black py-3 px-4 font-marker text-sm uppercase flex items-center justify-center rounded-bl-2xl" style={{ backgroundColor: accentColor }}>MURAL // {artStyle}</div>
+                <button onClick={handleDownloadImage} className="bg-white text-black py-3 px-6 font-bold text-[10px] uppercase rounded-br-2xl">DOWNLOAD</button>
               </div>
             </div>
-
-            <button 
-              onClick={() => setImagePreviewUrl(null)}
-              className="text-white/60 font-bold text-[10px] md:text-xs uppercase tracking-[0.4em] hover:text-white transition-colors"
-            >
-              [ CLICK ANYWHERE OUTSIDE OR PRESS ESC TO EXIT ]
-            </button>
           </div>
-          
-          <div 
-            className="absolute inset-0 z-[-1]" 
-            onClick={() => setImagePreviewUrl(null)} 
-          />
+          <div className="absolute inset-0 z-[-1]" onClick={() => setImagePreviewUrl(null)} />
         </div>
       )}
 
@@ -611,9 +486,13 @@ const App: React.FC = () => {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        html, body, #root {
-          overflow: hidden;
-          overscroll-behavior: none;
+        @media (max-width: 480px) {
+          .xs\\:inline { display: inline !important; }
+        }
+
+        /* Prevent zooming on iOS input focus */
+        input[type="text"], select {
+          font-size: 16px !important;
         }
       `}</style>
     </div>

@@ -89,9 +89,9 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
   outputNode.connect(outputAudioContext.destination);
   const sources = new Set<AudioBufferSourceNode>();
 
-  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy: you can change your scale, your theme, your art engine, and even open or close the command window at will. Use these functions to enhance the vibe or react to the conversation.";
+  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy: you can change your scale, your theme, your art engine, the size of your on-screen words, and even open or close the command window at will. Use these functions to enhance the vibe or react to the conversation.";
 
-  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. If the user wants a different look, change the theme. If you need to focus, shrink yourself. If you want to show code, open the command window.`;
+  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. If the user wants a different look, change the theme. If you need to focus, shrink yourself. If your words need to be emphasized or cleared, change the transcription font size. If you want to show code, open the command window.`;
 
   const sessionPromise = ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -135,8 +135,11 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
         }
 
         if (message.serverContent?.interrupted) {
+          // Immediately kill all pending audio to stop skipping/ghosting
           for (const source of sources.values()) {
-            source.stop();
+            try {
+              source.stop();
+            } catch (e) {}
             sources.delete(source);
           }
           nextStartTime = 0;
@@ -145,15 +148,20 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
 
         const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
         if (base64Audio) {
+          // Signal chunk arrival for UI state
           callbacks.onAudioChunk();
+          
+          // Schedule audio playback
           nextStartTime = Math.max(nextStartTime, outputAudioContext.currentTime);
           const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContext, 24000, 1);
           const source = outputAudioContext.createBufferSource();
           source.buffer = audioBuffer;
           source.connect(outputNode);
-          source.addEventListener('ended', () => {
+          
+          source.onended = () => {
             sources.delete(source);
-          });
+          };
+
           source.start(nextStartTime);
           nextStartTime += audioBuffer.duration;
           sources.add(source);
@@ -247,6 +255,20 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
                 } 
               },
               required: ['scale']
+            }
+          },
+          {
+            name: 'set_transcription_size',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Resize the spoken transcription text on the screen.',
+              properties: { 
+                size: { 
+                  type: Type.NUMBER, 
+                  description: 'A font size value in pixels between 12 and 120' 
+                } 
+              },
+              required: ['size']
             }
           },
           {
