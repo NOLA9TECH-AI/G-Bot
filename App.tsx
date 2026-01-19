@@ -251,6 +251,12 @@ const App: React.FC = () => {
       case SystemTheme.ONYX: return { accent: '#ffffff', secondary: '#111111' };
       case SystemTheme.NEBULA: return { accent: '#ff00ff', secondary: '#120042' };
       case SystemTheme.GHOST: return { accent: '#dddddd', secondary: '#ffffff' };
+      // Handle newly added themes for visual consistency
+      case SystemTheme.CARBON: return { accent: '#a1a1aa', secondary: '#ffffff' };
+      case SystemTheme.VULCAN: return { accent: '#f97316', secondary: '#ff0000' };
+      case SystemTheme.COBALT: return { accent: '#2563eb', secondary: '#ffffff' };
+      case SystemTheme.TITAN: return { accent: '#d4af37', secondary: '#ffffff' };
+      case SystemTheme.CRIMSON: return { accent: '#991b1b', secondary: '#ffffff' };
       default: return { accent: '#39ff14', secondary: '#bc13fe' };
     }
   };

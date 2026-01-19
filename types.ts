@@ -52,7 +52,12 @@ export enum SystemTheme {
   PHANTOM = 'phantom',
   ONYX = 'onyx',
   NEBULA = 'nebula',
-  GHOST = 'ghost'
+  GHOST = 'ghost',
+  CARBON = 'carbon',
+  VULCAN = 'vulcan',
+  COBALT = 'cobalt',
+  TITAN = 'titan',
+  CRIMSON = 'crimson'
 }
 
 export enum EnvironmentType {
