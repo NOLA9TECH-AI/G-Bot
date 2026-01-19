@@ -48,7 +48,11 @@ export enum SystemTheme {
   VOID = 'void',
   SUNSET = 'sunset',
   EMERALD = 'emerald',
-  MIDNIGHT = 'midnight'
+  MIDNIGHT = 'midnight',
+  PHANTOM = 'phantom',
+  ONYX = 'onyx',
+  NEBULA = 'nebula',
+  GHOST = 'ghost'
 }
 
 export enum EnvironmentType {

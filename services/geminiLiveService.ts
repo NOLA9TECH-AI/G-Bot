@@ -89,7 +89,7 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
   outputNode.connect(outputAudioContext.destination);
   const sources = new Set<AudioBufferSourceNode>();
 
-  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy: you can change your scale, your armor color, your theme, your art engine, the size of your on-screen words, and even open or close the command window at will. Use these functions to enhance the vibe or react to the conversation.";
+  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy. If the theme is Phantom, Onyx, Nebula, or Ghost, adopt a slightly more mysterious, cryptic, and deep tone, as if you are a phantom in the machine.";
 
   const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. If the user wants a different look, change the theme or your armor color. If you need to focus, shrink yourself. If your words need to be emphasized or cleared, change the transcription font size. If you want to show code, open the command window.`;
 
@@ -135,7 +135,6 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
         }
 
         if (message.serverContent?.interrupted) {
-          // Immediately kill all pending audio to stop skipping/ghosting
           for (const source of sources.values()) {
             try {
               source.stop();
@@ -148,10 +147,7 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
 
         const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
         if (base64Audio) {
-          // Signal chunk arrival for UI state
           callbacks.onAudioChunk();
-          
-          // Schedule audio playback
           nextStartTime = Math.max(nextStartTime, outputAudioContext.currentTime);
           const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContext, 24000, 1);
           const source = outputAudioContext.createBufferSource();
