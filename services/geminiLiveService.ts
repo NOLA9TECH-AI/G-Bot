@@ -89,9 +89,9 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
   outputNode.connect(outputAudioContext.destination);
   const sources = new Set<AudioBufferSourceNode>();
 
-  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy: you can change your scale, your theme, your art engine, the size of your on-screen words, and even open or close the command window at will. Use these functions to enhance the vibe or react to the conversation.";
+  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy: you can change your scale, your armor color, your theme, your art engine, the size of your on-screen words, and even open or close the command window at will. Use these functions to enhance the vibe or react to the conversation.";
 
-  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. If the user wants a different look, change the theme. If you need to focus, shrink yourself. If your words need to be emphasized or cleared, change the transcription font size. If you want to show code, open the command window.`;
+  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. If the user wants a different look, change the theme or your armor color. If you need to focus, shrink yourself. If your words need to be emphasized or cleared, change the transcription font size. If you want to show code, open the command window.`;
 
   const sessionPromise = ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -255,6 +255,20 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
                 } 
               },
               required: ['scale']
+            }
+          },
+          {
+            name: 'set_robot_color',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Change your armor color tint.',
+              properties: { 
+                color: { 
+                  type: Type.STRING, 
+                  description: 'A hex color code like #FF0000 or #00FF00' 
+                } 
+              },
+              required: ['color']
             }
           },
           {

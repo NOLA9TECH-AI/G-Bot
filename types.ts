@@ -51,6 +51,16 @@ export enum SystemTheme {
   MIDNIGHT = 'midnight'
 }
 
+export enum EnvironmentType {
+  NONE = 'none',
+  NEURAL_VOID = 'neural_void',
+  CYBER_DISTRICT = 'cyber_district',
+  DATA_CORE = 'data_core',
+  SYNTH_HORIZON = 'synth_horizon',
+  MECHA_HANGAR = 'mecha_hangar',
+  NEO_TOKYO = 'neo_tokyo'
+}
+
 export enum RobotAnimation {
   IDLE = 'Idle',
   WALKING = 'Walking',

@@ -16,7 +16,8 @@ import {
   RobotAnimation, 
   RobotVisualMood,
   GroundingSource,
-  SystemTheme
+  SystemTheme,
+  EnvironmentType
 } from './types';
 import RobotCanvas, { RobotRef } from './components/RobotCanvas';
 
@@ -25,14 +26,24 @@ const App: React.FC = () => {
     const savedTheme = localStorage.getItem('g3_system_theme');
     return (savedTheme as SystemTheme) || SystemTheme.HOOD;
   });
+
+  const [environment, setEnvironment] = useState<EnvironmentType>(() => {
+    const savedEnv = localStorage.getItem('g3_environment');
+    return (savedEnv as EnvironmentType) || EnvironmentType.NONE;
+  });
+
+  const [robotColor, setRobotColor] = useState<string>(() => {
+    const savedColor = localStorage.getItem('g3_robot_color');
+    return savedColor || '#000000';
+  });
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [robotStyle, setRobotStyle] = useState<RobotStyle>(RobotStyle.STEALTH); 
+  const [robotStyle, setRobotStyle] = useState<RobotStyle>(RobotStyle.CYBER); 
   const [artStyle, setArtStyle] = useState<ArtStyle>(ArtStyle.STREET);
   const [robotSize, setRobotSize] = useState(1.0);
-  const [transcriptionFontSize, setTranscriptionFontSize] = useState(48);
+  const [transcriptionFontSize, setTranscriptionFontSize] = useState(18);
   const [robotMood, setRobotMood] = useState<RobotVisualMood>(RobotVisualMood.NONE);
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [isMobileControlsOpen, setIsMobileControlsOpen] = useState(false);
@@ -82,7 +93,9 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isChatVisible) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, liveBotTranscription, isChatVisible]);
 
   const saveToLocalStorage = () => {
@@ -93,29 +106,24 @@ const App: React.FC = () => {
 
   const saveThemeToLocalStorage = () => {
     localStorage.setItem('g3_system_theme', theme);
+    localStorage.setItem('g3_environment', environment);
+    localStorage.setItem('g3_robot_color', robotColor);
     setThemeSaveStatus('saved');
     setTimeout(() => setThemeSaveStatus('idle'), 2000);
-  };
-
-  const clearHistory = () => {
-    if (window.confirm("PURGE ALL NEURAL RECORDS?")) {
-      const initialMsg = [{ id: '1', role: MessageRole.SYSTEM, text: 'RECORDS PURGED. RE-INITIALIZED.' }];
-      setMessages(initialMsg);
-      localStorage.removeItem('g3_chat_history');
-    }
   };
 
   const toggleTheme = () => {
     const themes = Object.values(SystemTheme);
     const currentIndex = themes.indexOf(theme);
     const nextTheme = themes[(currentIndex + 1) % themes.length];
-    
     setTheme(nextTheme);
-    setMessages(prev => [...prev, { 
-      id: `sys-${Date.now()}`, 
-      role: MessageRole.SYSTEM, 
-      text: `SYSTEM OVERRIDE: SWITCHING TO ${nextTheme.toUpperCase()} AESTHETIC.` 
-    }]);
+  };
+
+  const toggleEnvironment = () => {
+    const envs = Object.values(EnvironmentType);
+    const currentIndex = envs.indexOf(environment);
+    const nextEnv = envs[(currentIndex + 1) % envs.length];
+    setEnvironment(nextEnv);
   };
 
   const toggleLiveVoice = async () => {
@@ -162,6 +170,7 @@ const App: React.FC = () => {
             if (fc.name === 'toggle_command_window') setIsChatVisible(fc.args.visible);
             if (fc.name === 'set_system_theme') setTheme(fc.args.theme as SystemTheme);
             if (fc.name === 'set_robot_scale') setRobotSize(Math.max(0.5, Math.min(2.0, fc.args.scale)));
+            if (fc.name === 'set_robot_color') setRobotColor(fc.args.color);
             if (fc.name === 'set_transcription_size') setTranscriptionFontSize(Math.max(12, Math.min(120, fc.args.size)));
             if (fc.name === 'trigger_emote') robotRef.current?.triggerAnimation(fc.args.emote as RobotAnimation);
             if (fc.name === 'set_art_style') setArtStyle(fc.args.style as ArtStyle);
@@ -197,7 +206,6 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, botMsg]);
 
     let accumulatedText = '';
-
     try {
       await getGeminiResponse(userMsg.text, theme, (chunk, sources) => {
         accumulatedText += chunk;
@@ -276,7 +284,7 @@ const App: React.FC = () => {
           <div key={i} className="my-2 group/code relative rounded-xl overflow-hidden border-2 bg-black/80 font-mono text-[11px] md:text-[13px]" style={{ borderColor: accentColor + '44' }}>
             <div className="flex items-center justify-between px-3 py-1 bg-white/5 border-b border-white/5">
               <span className="text-[8px] font-bold uppercase tracking-widest opacity-40">{lang}</span>
-              <button onClick={() => navigator.clipboard.writeText(code)} className="text-[8px] font-bold uppercase opacity-60" style={{ color: accentColor }}>COPY</button>
+              <button onClick={() => navigator.clipboard.writeText(code)} className="text-[8px] font-bold uppercase" style={{ color: accentColor }}>COPY</button>
             </div>
             <pre className="p-2 overflow-x-auto whitespace-pre custom-scrollbar">
               <code className="block" style={{ color: accentColor }}>{code}</code>
@@ -291,7 +299,7 @@ const App: React.FC = () => {
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black text-white selection:bg-neon-green selection:text-black flex flex-col">
       <div className="absolute inset-0 z-0 overflow-hidden">
-        <RobotCanvas ref={robotRef} style={robotStyle} size={robotSize} mood={robotMood} theme={theme} />
+        <RobotCanvas ref={robotRef} style={robotStyle} size={robotSize} mood={robotMood} theme={theme} environment={environment} color={robotColor} />
       </div>
 
       <div className="relative z-10 flex-1 flex flex-col p-4 md:p-8 pointer-events-none h-full overflow-hidden">
@@ -300,15 +308,33 @@ const App: React.FC = () => {
             <h1 className="font-marker text-xl md:text-5xl -rotate-1 origin-left transition-colors duration-500 neon-text" style={{ color: accentColor }}>{theme.toUpperCase()}</h1>
             <p className="text-[7px] md:text-xs font-bold tracking-widest uppercase opacity-80" style={{ color: secondaryColor }}>// G-3 CORE</p>
           </div>
-          <button onClick={toggleLiveVoice} className={`flex items-center gap-2 px-3 py-1.5 md:px-6 md:py-3 rounded-full border-2 font-bold transition-all duration-300 pointer-events-auto shadow-lg text-[10px] md:text-base ${isLiveActive ? 'bg-red-600 border-red-400 animate-pulse text-white' : 'bg-black/50 hover:bg-white hover:text-black'}`} style={!isLiveActive ? { borderColor: accentColor, color: accentColor } : {}}>
-            <span>{isLiveActive ? '⏹' : '🎤'}</span>
-            <span className="hidden xs:inline">{isLiveActive ? 'STOP' : 'LIVE'}</span>
-          </button>
+          <div className="flex gap-2">
+            <button onClick={toggleEnvironment} className="flex items-center gap-2 px-3 py-1.5 md:px-6 md:py-3 rounded-full border-2 font-bold transition-all duration-300 pointer-events-auto shadow-lg text-[10px] md:text-base bg-black/50 hover:bg-white hover:text-black" style={{ borderColor: secondaryColor, color: secondaryColor }}>
+              <span className="hidden xs:inline">WORLD</span>
+            </button>
+            <button onClick={toggleLiveVoice} className={`flex items-center gap-2 px-3 py-1.5 md:px-6 md:py-3 rounded-full border-2 font-bold transition-all duration-300 pointer-events-auto shadow-lg text-[10px] md:text-base ${isLiveActive ? 'bg-red-600 border-red-400 animate-pulse text-white' : 'bg-black/50 hover:bg-white hover:text-black'}`} style={!isLiveActive ? { borderColor: accentColor, color: accentColor } : {}}>
+              <span>{isLiveActive ? '⏹' : '🎤'}</span>
+              <span className="hidden xs:inline">{isLiveActive ? 'STOP' : 'LIVE'}</span>
+            </button>
+          </div>
         </header>
 
         {/* Desktop Sidebar */}
         <aside className="absolute right-8 top-32 w-48 pointer-events-auto hidden lg:block space-y-4">
-          <div className="bg-black/60 border rounded-2xl p-4 backdrop-blur-md space-y-4" style={{ borderColor: secondaryColor + '44' }}>
+          <div className="bg-black/60 border border-white/10 rounded-2xl p-4 backdrop-blur-md space-y-4" style={{ borderColor: secondaryColor + '44' }}>
+            <button onClick={toggleEnvironment} className="w-full py-2 rounded-lg border border-white/10 text-[10px] font-bold uppercase hover:bg-white hover:text-black transition-colors" style={{ color: secondaryColor }}>
+              Next Background
+            </button>
+            <div className="flex flex-col gap-1">
+              <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Robot Armor Tint</label>
+              <input type="color" value={robotColor} onChange={(e) => setRobotColor(e.target.value)} className="w-full h-8 rounded-lg bg-black/50 border border-white/10 cursor-pointer overflow-hidden" />
+            </div>
+            <div>
+              <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Robot Style</label>
+              <select value={robotStyle} onChange={(e) => setRobotStyle(e.target.value as RobotStyle)} className="w-full bg-black/80 border border-white/10 rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none text-white" style={{ borderColor: secondaryColor + '44' }}>
+                {Object.values(RobotStyle).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Robot Scale</label>
               <input type="range" min="0.5" max="2" step="0.1" value={robotSize} onChange={(e) => setRobotSize(parseFloat(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white" />
@@ -319,13 +345,13 @@ const App: React.FC = () => {
             </div>
             <div className="relative">
               <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Art Engine</label>
-              <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-black/80 border rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none" style={{ color: secondaryColor, borderColor: secondaryColor + '44' }}>
+              <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-black/80 border border-white/10 rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none text-white" style={{ borderColor: secondaryColor + '44' }}>
                 {Object.values(ArtStyle).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
               </select>
             </div>
             <div className="relative">
               <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Emotes</label>
-              <select onChange={(e) => { const val = e.target.value as RobotAnimation; if (val) robotRef.current?.triggerAnimation(val); }} className="w-full bg-black/80 border rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none" style={{ color: secondaryColor, borderColor: secondaryColor + '44' }} defaultValue="">
+              <select onChange={(e) => { const val = e.target.value as RobotAnimation; if (val) robotRef.current?.triggerAnimation(val); }} className="w-full bg-black/80 border border-white/10 rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none text-white" style={{ borderColor: secondaryColor + '44' }} defaultValue="">
                 <option value="" disabled>SELECT EMOTE</option>
                 <optgroup label="ACTIONS" className="bg-zinc-900">
                   <option value={RobotAnimation.GREET}>HI</option>
@@ -360,13 +386,20 @@ const App: React.FC = () => {
         <div className="mt-auto w-full flex flex-col items-center justify-end pointer-events-none pb-4">
           <div className="lg:hidden flex flex-col items-center w-full max-w-sm pointer-events-auto">
             {isMobileControlsOpen && (
-              <div className="w-full bg-black/80 backdrop-blur-3xl border-2 rounded-3xl p-5 mb-4 shadow-2xl space-y-5 animate-[floatUp_0.2s_ease-out]" style={{ borderColor: accentColor + '66' }}>
+              <div className="w-full bg-black/80 backdrop-blur-3xl border-2 border-white/10 rounded-3xl p-5 mb-4 shadow-2xl space-y-5 animate-[floatUp_0.2s_ease-out]" style={{ borderColor: accentColor + '66' }}>
                 <div className="flex justify-between items-center mb-1">
                   <h3 className="text-[10px] font-bold tracking-[0.2em] uppercase" style={{ color: accentColor }}>SYSTEM CONFIG</h3>
-                  <button onClick={toggleTheme} className="text-[8px] border px-2 py-0.5 rounded-full uppercase" style={{ color: secondaryColor, borderColor: secondaryColor }}>{theme}</button>
+                  <div className="flex gap-2">
+                    <button onClick={toggleEnvironment} className="text-[8px] border border-white/20 px-2 py-0.5 rounded-full uppercase text-white">BG: {environment}</button>
+                    <button onClick={toggleTheme} className="text-[8px] border border-white/20 px-2 py-0.5 rounded-full uppercase text-white">{theme}</button>
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[8px] font-bold uppercase opacity-60" style={{ color: accentColor }}>Armor Color</span>
+                    <input type="color" value={robotColor} onChange={(e) => setRobotColor(e.target.value)} className="w-12 h-6 rounded border border-white/10 bg-black/50" />
+                  </div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-[8px] font-bold uppercase opacity-60" style={{ color: accentColor }}>
                       <span>Robot Scale</span>
@@ -384,13 +417,13 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     <div className="space-y-1">
                       <span className="text-[8px] font-bold uppercase opacity-40">Art Engine</span>
-                      <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-[9px] font-bold uppercase focus:outline-none">
+                      <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-[9px] font-bold uppercase focus:outline-none text-white">
                         {Object.values(ArtStyle).map(s => <option key={s} value={s} className="bg-zinc-900">{s}</option>)}
                       </select>
                     </div>
                     <div className="space-y-1">
                       <span className="text-[8px] font-bold uppercase opacity-40">Emote</span>
-                      <select onChange={(e) => { const val = e.target.value as RobotAnimation; if (val) robotRef.current?.triggerAnimation(val); }} className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-[9px] font-bold uppercase focus:outline-none" defaultValue="">
+                      <select onChange={(e) => { const val = e.target.value as RobotAnimation; if (val) robotRef.current?.triggerAnimation(val); }} className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-[9px] font-bold uppercase focus:outline-none text-white" defaultValue="">
                         <option value="" disabled className="bg-zinc-900">SELECT</option>
                         <option value={RobotAnimation.GREET} className="bg-zinc-900">HI</option>
                         <option value={RobotAnimation.DANCE} className="bg-zinc-900">DANCE</option>
@@ -405,14 +438,14 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex justify-center pt-2 gap-3">
-                  <button onClick={saveThemeToLocalStorage} className="text-[8px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border border-white/20 hover:bg-white hover:text-black transition-all">SAVE THEME</button>
+                  <button onClick={saveThemeToLocalStorage} className="text-[8px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border border-white/20 hover:bg-white hover:text-black transition-all">SAVE CONFIG</button>
                   <button onClick={() => setIsMobileControlsOpen(false)} className="text-[8px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full bg-white text-black">CLOSE</button>
                 </div>
               </div>
             )}
             
             <div className="flex gap-2 w-full px-4 mb-2">
-              <button onClick={() => setIsMobileControlsOpen(!isMobileControlsOpen)} className={`flex-1 bg-black/80 backdrop-blur-xl border-2 font-bold py-3 rounded-2xl text-[10px] tracking-widest uppercase transition-all shadow-xl ${isMobileControlsOpen ? 'border-white text-white' : ''}`} style={!isMobileControlsOpen ? { color: accentColor, borderColor: accentColor + '44' } : {}}>
+              <button onClick={() => setIsMobileControlsOpen(!isMobileControlsOpen)} className={`flex-1 bg-black/80 backdrop-blur-xl border-2 border-white/10 font-bold py-3 rounded-2xl text-[10px] tracking-widest uppercase transition-all shadow-xl ${isMobileControlsOpen ? 'border-white text-white' : ''}`} style={!isMobileControlsOpen ? { color: accentColor, borderColor: accentColor + '44' } : {}}>
                 {isMobileControlsOpen ? '⚙ CONFIG ACTIVE' : '⚙ SYSTEM CONFIG'}
               </button>
               <button onClick={() => setIsChatVisible(true)} className="flex-1 bg-black/90 border-2 font-marker text-sm py-3 rounded-2xl tracking-[0.2em] uppercase shadow-xl" style={{ color: accentColor, borderColor: accentColor }}>
@@ -423,17 +456,17 @@ const App: React.FC = () => {
 
           {isChatVisible && (
             <main className="fixed inset-x-0 bottom-0 z-50 w-full max-w-4xl mx-auto flex flex-col pointer-events-auto animate-[floatUp_0.3s_ease-out] overflow-hidden h-[95dvh] lg:h-[80dvh] bg-black/95 lg:bg-transparent lg:relative lg:mb-4">
-              <div className="flex-1 bg-black/90 lg:border-2 lg:rounded-[2rem] p-4 flex flex-col backdrop-blur-3xl shadow-2xl relative border-t-2 border-white/10 lg:border-accent" style={{ borderColor: accentColor }}>
+              <div className="flex-1 flex flex-col h-full bg-black/90 lg:border-2 lg:rounded-[2rem] p-4 backdrop-blur-3xl shadow-2xl relative border-t-2 border-white/10 lg:border-accent" style={{ borderColor: accentColor }}>
                 
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5 shrink-0">
                   <div className="flex gap-2 items-center">
                     <h2 className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>NEURAL COMMAND</h2>
                     <button onClick={saveToLocalStorage} className="text-[8px] border px-2 py-0.5 rounded uppercase" style={{ color: accentColor, borderColor: accentColor }}>{saveStatus === 'saved' ? 'LOCKED' : 'SAVE'}</button>
                   </div>
-                  <button onClick={() => setIsChatVisible(false)} className="rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border hover:bg-white hover:text-black" style={{ color: accentColor, borderColor: accentColor }}>✕</button>
+                  <button onClick={() => setIsChatVisible(false)} className="rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border hover:bg-white hover:text-black transition-colors" style={{ color: accentColor, borderColor: accentColor }}>✕</button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-1 space-y-4 custom-scrollbar pb-4 no-scrollbar">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-4 overscroll-y-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
                   {messages.map((msg) => (
                     <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'}`}>
                       {msg.role === MessageRole.SYSTEM ? (
@@ -460,10 +493,10 @@ const App: React.FC = () => {
                   <div ref={chatEndRef} />
                 </div>
 
-                <div className="mt-4 flex gap-2 items-center pb-2">
-                  <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="SYSTEM COMMAND..." className="flex-1 bg-white/5 border rounded-2xl px-4 py-3 text-sm focus:outline-none font-mono" style={{ color: accentColor, borderColor: accentColor + '44' }} />
-                  <button onClick={handleSendMessage} disabled={isLoading} className="font-bold p-3 rounded-2xl text-[9px] text-black shadow-lg" style={{ backgroundColor: accentColor }}>⚡ EXEC</button>
-                  <button onClick={handleGenerateArt} disabled={isLoading} className="font-bold p-3 rounded-2xl text-[9px] text-white shadow-lg" style={{ backgroundColor: secondaryColor }}>🎨 GEN</button>
+                <div className="mt-4 flex gap-2 items-center pb-2 shrink-0">
+                  <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="SYSTEM COMMAND..." className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm focus:outline-none font-mono text-white" style={{ borderColor: accentColor + '44' }} />
+                  <button onClick={handleSendMessage} disabled={isLoading} className="font-bold p-3 rounded-2xl text-[9px] text-white shadow-lg active:scale-95 transition-transform" style={{ backgroundColor: accentColor }}>⚡ EXEC</button>
+                  <button onClick={handleGenerateArt} disabled={isLoading} className="font-bold p-3 rounded-2xl text-[9px] text-white shadow-lg active:scale-95 transition-transform" style={{ backgroundColor: secondaryColor }}>🎨 GEN</button>
                 </div>
               </div>
             </main>
@@ -480,7 +513,7 @@ const App: React.FC = () => {
             <div className="bg-black p-1 border-2 rounded-3xl overflow-hidden shadow-2xl w-full" style={{ borderColor: accentColor }}>
               <img src={imagePreviewUrl} className="w-full h-auto max-h-[75dvh] object-contain rounded-2xl" />
               <div className="flex w-full mt-1 gap-1">
-                <div className="flex-1 text-black py-3 px-4 font-marker text-sm uppercase flex items-center justify-center rounded-bl-2xl" style={{ backgroundColor: accentColor }}>MURAL // {artStyle}</div>
+                <div className="flex-1 text-white py-3 px-4 font-marker text-sm uppercase flex items-center justify-center rounded-bl-2xl" style={{ backgroundColor: accentColor }}>MURAL // {artStyle}</div>
                 <button onClick={handleDownloadImage} className="bg-white text-black py-3 px-6 font-bold text-[10px] uppercase rounded-br-2xl">DOWNLOAD</button>
               </div>
             </div>
@@ -497,8 +530,6 @@ const App: React.FC = () => {
           40% { transform: translate(-0.5px, -0.5px); text-shadow: -1px 1px ${secondaryColor}, 1px -1px ${accentColor}; }
           100% { transform: translate(0); }
         }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         @media (max-width: 480px) {
           .xs\\:inline { display: inline !important; }
