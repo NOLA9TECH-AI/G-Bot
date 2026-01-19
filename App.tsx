@@ -306,7 +306,7 @@ const App: React.FC = () => {
           </button>
         </header>
 
-        {/* Desktop Sidebar remains */}
+        {/* Desktop Sidebar */}
         <aside className="absolute right-8 top-32 w-48 pointer-events-auto hidden lg:block space-y-4">
           <div className="bg-black/60 border rounded-2xl p-4 backdrop-blur-md space-y-4" style={{ borderColor: secondaryColor + '44' }}>
             <div>
@@ -327,10 +327,19 @@ const App: React.FC = () => {
               <label className="block font-bold text-[10px] mb-1 uppercase opacity-60" style={{ color: accentColor }}>Emotes</label>
               <select onChange={(e) => { const val = e.target.value as RobotAnimation; if (val) robotRef.current?.triggerAnimation(val); }} className="w-full bg-black/80 border rounded-lg px-2 py-2 text-[10px] font-bold uppercase focus:outline-none" style={{ color: secondaryColor, borderColor: secondaryColor + '44' }} defaultValue="">
                 <option value="" disabled>SELECT EMOTE</option>
-                <option value={RobotAnimation.GREET}>HI</option>
-                <option value={RobotAnimation.DANCE}>PARTY</option>
-                <option value={RobotAnimation.FLEX}>FLEX</option>
-                <option value={RobotAnimation.CELEBRATE}>VICTORY</option>
+                <optgroup label="ACTIONS" className="bg-zinc-900">
+                  <option value={RobotAnimation.GREET}>HI</option>
+                  <option value={RobotAnimation.DANCE}>PARTY</option>
+                  <option value={RobotAnimation.FLEX}>FLEX</option>
+                  <option value={RobotAnimation.PUNCH}>STRIKE PROTOCOL</option>
+                  <option value={RobotAnimation.ALERT}>NEURAL SURGE</option>
+                </optgroup>
+                <optgroup label="SYSTEM" className="bg-zinc-900">
+                  <option value={RobotAnimation.CELEBRATE}>VICTORY</option>
+                  <option value={RobotAnimation.YES}>AFFIRM</option>
+                  <option value={RobotAnimation.NO}>DENY</option>
+                  <option value={RobotAnimation.SHUTDOWN}>CRITICAL ERROR</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -386,6 +395,11 @@ const App: React.FC = () => {
                         <option value={RobotAnimation.GREET} className="bg-zinc-900">HI</option>
                         <option value={RobotAnimation.DANCE} className="bg-zinc-900">DANCE</option>
                         <option value={RobotAnimation.FLEX} className="bg-zinc-900">FLEX</option>
+                        <option value={RobotAnimation.PUNCH} className="bg-zinc-900">STRIKE</option>
+                        <option value={RobotAnimation.ALERT} className="bg-zinc-900">SURGE</option>
+                        <option value={RobotAnimation.YES} className="bg-zinc-900">AFFIRM</option>
+                        <option value={RobotAnimation.NO} className="bg-zinc-900">DENY</option>
+                        <option value={RobotAnimation.SHUTDOWN} className="bg-zinc-900">CRITICAL</option>
                       </select>
                     </div>
                   </div>
