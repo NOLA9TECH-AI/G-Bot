@@ -23,7 +23,8 @@ export enum RobotStyle {
   CYBER = 'cyber',
   STREET = 'street',
   GOLD = 'gold',
-  STEALTH = 'stealth'
+  STEALTH = 'stealth',
+  BLACK_DIAMOND = 'black_diamond'
 }
 
 export enum ArtStyle {
@@ -40,50 +41,25 @@ export enum ArtStyle {
 }
 
 export enum SystemTheme {
-  CYBERPUNK = 'cyberpunk',
-  HOOD = 'hood',
-  TOXIC = 'toxic',
-  FROST = 'frost',
-  BLOOD = 'blood',
-  VOID = 'void',
-  SUNSET = 'sunset',
-  EMERALD = 'emerald',
-  MIDNIGHT = 'midnight',
-  PHANTOM = 'phantom',
-  ONYX = 'onyx',
-  NEBULA = 'nebula',
-  GHOST = 'ghost',
-  CARBON = 'carbon',
-  VULCAN = 'vulcan',
-  COBALT = 'cobalt',
-  TITAN = 'titan',
+  CYBER_BLUE = 'cyber_blue',
+  SANGUINE = 'sanguine',
+  PHOSPHOR = 'phosphor',
+  DEEP_SEA = 'deep_sea',
   CRIMSON = 'crimson',
-  MAGMA = 'magma',
-  COBALT_STRIKE = 'cobalt_strike',
-  NEON_BONE = 'neon_bone',
-  NIGHTSHADE = 'nightshade',
-  SULFUR = 'sulfur',
-  NOIR_COMIC = 'noir_comic',
-  VIGILANTE = 'vigilante',
-  PULP_FICTION = 'pulp_fiction',
-  MUTANT_X = 'mutant_x',
-  COSMIC_RAYS = 'cosmic_rays',
-  STORM_GRAY_BLUE = 'storm_gray_blue',
-  SANGUINE_NOIR = 'sanguine_noir',
-  SLATE_PHOSPHOR = 'slate_phosphor',
-  DEEP_TRENCH = 'deep_trench',
-  CRIMSON_SHADOW = 'crimson_shadow',
-  INK_VERIDIAN = 'ink_veridian'
+  VERIDIAN = 'veridian',
+  GOLD_LEAF = 'gold_leaf',
+  TOXIC_LIME = 'toxic_lime',
+  ELECTRIC_VIOLET = 'electric_violet',
+  SOLAR_ORANGE = 'solar_orange',
+  NEON_PINK = 'neon_pink',
+  NEURAL_WHITE = 'neural_white'
 }
 
 export enum EnvironmentType {
   NONE = 'none',
   NEURAL_VOID = 'neural_void',
-  CYBER_DISTRICT = 'cyber_district',
   DATA_CORE = 'data_core',
-  SYNTH_HORIZON = 'synth_horizon',
-  MECHA_HANGAR = 'mecha_hangar',
-  NEO_TOKYO = 'neo_tokyo'
+  MECHA_HANGAR = 'mecha_hangar'
 }
 
 export enum RobotAnimation {
@@ -108,7 +84,6 @@ export enum RobotAnimation {
   SHOCK = 'Shock',
   SULK = 'Sulk',
   GREET = 'Greet',
-  // Dance Module
   DANCE_ROBOT = 'Dance_Robot',
   DANCE_BREAKDANCE = 'Dance_Breakdance',
   DANCE_FLOSS = 'Dance_Floss',

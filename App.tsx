@@ -15,7 +15,6 @@ import {
   ArtStyle,
   RobotAnimation, 
   RobotVisualMood,
-  GroundingSource,
   SystemTheme,
   EnvironmentType
 } from './types';
@@ -24,7 +23,7 @@ import RobotCanvas, { RobotRef } from './components/RobotCanvas';
 const App: React.FC = () => {
   const [theme, setTheme] = useState<SystemTheme>(() => {
     const savedTheme = localStorage.getItem('g3_system_theme');
-    return (savedTheme as SystemTheme) || SystemTheme.STORM_GRAY_BLUE;
+    return (savedTheme as SystemTheme) || SystemTheme.CYBER_BLUE;
   });
 
   const [environment, setEnvironment] = useState<EnvironmentType>(() => {
@@ -34,9 +33,23 @@ const App: React.FC = () => {
 
   const [robotColor, setRobotColor] = useState<string>(() => {
     const savedColor = localStorage.getItem('g3_robot_color');
-    return savedColor || '#000000';
+    // Default to a visible grey instead of pure black
+    return savedColor || '#888888';
   });
   
+  // New Lighting States
+  const [useManualLighting, setUseManualLighting] = useState(false);
+  const [overheadLight, setOverheadLight] = useState({
+    color: '#ffffff',
+    intensity: 400,
+    position: { x: 0, y: 20, z: 5 }
+  });
+  const [accentLight, setAccentLight] = useState({
+    color: '#7096ff',
+    intensity: 150,
+    position: { x: 0, y: 4, z: 10 }
+  });
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,13 +60,11 @@ const App: React.FC = () => {
   const [robotMood, setRobotMood] = useState<RobotVisualMood>(RobotVisualMood.NONE);
   const [sentimentMood, setSentimentMood] = useState<RobotVisualMood>(RobotVisualMood.NONE);
   const [isChatVisible, setIsChatVisible] = useState(false);
-  const [isQuickSettingsOpen, setIsQuickSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'CHAT' | 'CONFIG'>('CHAT');
   const [saveStatus, setSaveStatus] = useState<'IDLE' | 'SAVING' | 'SAVED'>('IDLE');
   const [loopEmotes, setLoopEmotes] = useState(false);
   
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  
   const [isLiveActive, setIsLiveActive] = useState(false);
   const [isBotTalking, setIsBotTalking] = useState(false);
   const [liveBotTranscription, setLiveBotTranscription] = useState('');
@@ -65,10 +76,11 @@ const App: React.FC = () => {
   const robotRef = useRef<RobotRef>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Sentiment Engine
+  useEffect(() => { localStorage.setItem('g3_system_theme', theme); }, [theme]);
+  useEffect(() => { localStorage.setItem('g3_robot_color', robotColor); }, [robotColor]);
+
   const analyzeSentiment = (text: string) => {
     const lowerText = text.toLowerCase();
-    
     const patterns = {
       [RobotVisualMood.EXCITED]: /awesome|great|incredible|amazing|wow|party|dance|excited|love it/i,
       [RobotVisualMood.HAPPY]: /yes|happy|good|cool|nice|thanks|thank you|lol|haha|hehe/i,
@@ -76,11 +88,8 @@ const App: React.FC = () => {
       [RobotVisualMood.SAD]: /sad|sorry|cry|lonely|pain|hurts|unhappy|depressed|dark/i,
       [RobotVisualMood.CURIOUS]: /\?|how|why|what|who|where|ponder|think|maybe|search/i
     };
-
     for (const [mood, pattern] of Object.entries(patterns)) {
-      if (pattern.test(lowerText)) {
-        return mood as RobotVisualMood;
-      }
+      if (pattern.test(lowerText)) return mood as RobotVisualMood;
     }
     return null;
   };
@@ -91,7 +100,6 @@ const App: React.FC = () => {
       const detectedMood = analyzeSentiment(lastMsg.text);
       if (detectedMood) {
         setSentimentMood(detectedMood);
-        // Reactive reactive animation
         switch (detectedMood) {
           case RobotVisualMood.HAPPY: robotRef.current?.triggerAnimation(RobotAnimation.THUMBSUP); break;
           case RobotVisualMood.EXCITED: robotRef.current?.triggerAnimation(RobotAnimation.CELEBRATE); break;
@@ -104,126 +112,89 @@ const App: React.FC = () => {
   }, [messages]);
 
   useEffect(() => {
-    if (isLoading) {
-      setRobotMood(RobotVisualMood.LOADING);
-    } else if (isBotTalking) {
-      setRobotMood(RobotVisualMood.TALKING);
-    } else if (sentimentMood !== RobotVisualMood.NONE) {
-      setRobotMood(sentimentMood);
-    } else {
-      setRobotMood(RobotVisualMood.NONE);
-    }
+    if (isLoading) setRobotMood(RobotVisualMood.LOADING);
+    else if (isBotTalking) setRobotMood(RobotVisualMood.TALKING);
+    else if (sentimentMood !== RobotVisualMood.NONE) setRobotMood(sentimentMood);
+    else setRobotMood(RobotVisualMood.NONE);
   }, [isLoading, isBotTalking, sentimentMood]);
 
   useEffect(() => {
-    if (isBotTalking) {
-      robotRef.current?.triggerAnimation(RobotAnimation.YES);
-    }
-  }, [isBotTalking]);
-
-  useEffect(() => {
     const saved = localStorage.getItem('g3_chat_history');
-    if (saved) {
-      try {
-        setMessages(JSON.parse(saved));
-      } catch (e) {
-        setMessages([{ id: '1', role: MessageRole.SYSTEM, text: 'G-3 CORE ONLINE. NEURAL LINK ESTABLISHED.' }]);
-      }
-    } else {
-      setMessages([{ id: '1', role: MessageRole.SYSTEM, text: 'G-3 CORE ONLINE. NEURAL LINK ESTABLISHED.' }]);
-    }
+    if (saved) { try { setMessages(JSON.parse(saved)); } catch (e) { setMessages([{ id: '1', role: MessageRole.SYSTEM, text: 'G-3 NEURAL ONLINE.' }]); } }
+    else { setMessages([{ id: '1', role: MessageRole.SYSTEM, text: 'G-3 NEURAL ONLINE.' }]); }
   }, []);
 
-  useEffect(() => {
-    if (isChatVisible && activeTab === 'CHAT') {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => { if (isChatVisible && activeTab === 'CHAT') chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, liveBotTranscription, isChatVisible, activeTab]);
+
+  const cycleTheme = () => {
+    const all = Object.values(SystemTheme);
+    const idx = all.indexOf(theme);
+    setTheme(all[(idx + 1) % all.length]);
+  };
+
+  const getThemeColors = (t: SystemTheme) => {
+    switch (t) {
+      case SystemTheme.CYBER_BLUE: return { accent: '#7096ff' };
+      case SystemTheme.SANGUINE: return { accent: '#990000' };
+      case SystemTheme.PHOSPHOR: return { accent: '#00ff99' };
+      case SystemTheme.DEEP_SEA: return { accent: '#00e5ff' };
+      case SystemTheme.CRIMSON: return { accent: '#ff1e1e' };
+      case SystemTheme.VERIDIAN: return { accent: '#00ffaa' };
+      case SystemTheme.GOLD_LEAF: return { accent: '#FFD700' };
+      case SystemTheme.TOXIC_LIME: return { accent: '#CCFF00' };
+      case SystemTheme.ELECTRIC_VIOLET: return { accent: '#8a2be2' };
+      case SystemTheme.SOLAR_ORANGE: return { accent: '#ff4500' };
+      case SystemTheme.NEON_PINK: return { accent: '#ff007f' };
+      case SystemTheme.NEURAL_WHITE: return { accent: '#ffffff' };
+      default: return { accent: '#39ff14' };
     }
-  }, [messages, liveBotTranscription, isChatVisible, activeTab]);
+  };
+
+  const { accent: accentColor } = getThemeColors(theme);
 
   const saveSettings = () => {
     setSaveStatus('SAVING');
     localStorage.setItem('g3_system_theme', theme);
-    localStorage.setItem('g3_environment', environment);
     localStorage.setItem('g3_robot_color', robotColor);
     localStorage.setItem('g3_chat_history', JSON.stringify(messages.slice(-50)));
     setTimeout(() => {
       setSaveStatus('SAVED');
       setTimeout(() => setSaveStatus('IDLE'), 2000);
-    }, 600);
-  };
-
-  const toggleEnvironment = () => {
-    const allEnvs = Object.values(EnvironmentType);
-    const currentIndex = allEnvs.indexOf(environment);
-    const nextIndex = (currentIndex + 1) % allEnvs.length;
-    setEnvironment(allEnvs[nextIndex]);
+    }, 800);
   };
 
   const toggleLiveVoice = async () => {
-    if (isLiveActive) {
-      if (liveSessionRef.current) liveSessionRef.current.close();
-      setIsLiveActive(false);
-      setIsBotTalking(false);
-      setLiveBotTranscription('');
-      activeUserMsgIdRef.current = null;
-      activeBotMsgIdRef.current = null;
-      return;
-    }
-
+    if (isLiveActive) { liveSessionRef.current?.close(); setIsLiveActive(false); setIsBotTalking(false); return; }
     try {
       const callbacks: LiveCallbacks = {
         onAudioChunk: () => setIsBotTalking(true),
-        onInterrupted: () => {
-          setIsBotTalking(false);
-          setLiveBotTranscription(' [ INTERRUPTED ] ');
-          robotRef.current?.triggerAnimation(RobotAnimation.NO);
-        },
+        onInterrupted: () => { setIsBotTalking(false); setLiveBotTranscription(' [ INTERRUPTED ] '); },
         onTranscription: (text, isUser) => {
           if (isUser) {
-            if (!activeUserMsgIdRef.current) {
-              activeUserMsgIdRef.current = `voice-user-${Date.now()}`;
-              setMessages(prev => [...prev, { id: activeUserMsgIdRef.current!, role: MessageRole.USER, text }]);
-            } else {
-              setMessages(prev => prev.map(m => m.id === activeUserMsgIdRef.current ? { ...m, text } : m));
-            }
+            if (!activeUserMsgIdRef.current) { activeUserMsgIdRef.current = `v-u-${Date.now()}`; setMessages(prev => [...prev, { id: activeUserMsgIdRef.current!, role: MessageRole.USER, text }]); }
+            else { setMessages(prev => prev.map(m => m.id === activeUserMsgIdRef.current ? { ...m, text } : m)); }
           } else {
-            setLiveBotTranscription(text);
-            setIsBotTalking(true);
-            if (!activeBotMsgIdRef.current) {
-              activeBotMsgIdRef.current = `voice-bot-${Date.now()}`;
-              setMessages(prev => [...prev, { id: activeBotMsgIdRef.current!, role: MessageRole.BOT, text }]);
-            } else {
-              setMessages(prev => prev.map(m => m.id === activeBotMsgIdRef.current ? { ...m, text } : m));
-            }
+            setLiveBotTranscription(text); setIsBotTalking(true);
+            if (!activeBotMsgIdRef.current) { activeBotMsgIdRef.current = `v-b-${Date.now()}`; setMessages(prev => [...prev, { id: activeBotMsgIdRef.current!, role: MessageRole.BOT, text }]); }
+            else { setMessages(prev => prev.map(m => m.id === activeBotMsgIdRef.current ? { ...m, text } : m)); }
           }
         },
         onToolCall: async (functionCalls) => {
           for (const fc of functionCalls) {
-            if (fc.name === 'generate_image') handleGenerateArtFromPrompt(fc.args.prompt);
-            if (fc.name === 'toggle_command_window') setIsChatVisible(fc.args.visible);
             if (fc.name === 'set_system_theme') setTheme(fc.args.theme as SystemTheme);
+            if (fc.name === 'set_robot_style') setRobotStyle(fc.args.style as RobotStyle);
             if (fc.name === 'set_robot_scale') setRobotSize(Math.max(0.5, Math.min(2.0, fc.args.scale)));
-            if (fc.name === 'set_robot_color') setRobotColor(fc.args.color);
-            if (fc.name === 'set_transcription_size') setTranscriptionFontSize(Math.max(12, Math.min(120, fc.args.size)));
             if (fc.name === 'trigger_emote') robotRef.current?.triggerAnimation(fc.args.emote as RobotAnimation, !!fc.args.loop);
           }
         },
-        onTurnComplete: () => {
-          setIsBotTalking(false);
-          setLiveBotTranscription('');
-          activeUserMsgIdRef.current = null;
-          activeBotMsgIdRef.current = null;
-        },
+        onTurnComplete: () => { setIsBotTalking(false); setLiveBotTranscription(''); activeUserMsgIdRef.current = null; activeBotMsgIdRef.current = null; },
         onError: () => setIsLiveActive(false),
         onClose: () => setIsLiveActive(false)
       };
-
       liveSessionRef.current = connectLive(theme, callbacks);
       setIsLiveActive(true);
       robotRef.current?.triggerAnimation(RobotAnimation.WAVE);
-    } catch (err) {
-      alert("Neural voice engine failed.");
-    }
+    } catch (err) { alert("Neural voice engine error."); }
   };
 
   const handleSendMessage = async () => {
@@ -232,278 +203,228 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
     setIsLoading(true);
-
     const botMsgId = (Date.now() + 1).toString();
-    const botMsg: ChatMessage = { id: botMsgId, role: MessageRole.BOT, text: '', isStreaming: true, sources: [] };
-    setMessages(prev => [...prev, botMsg]);
-
-    let accumulatedText = '';
+    setMessages(prev => [...prev, { id: botMsgId, role: MessageRole.BOT, text: '', isStreaming: true }]);
+    let acc = '';
     try {
-      await getGeminiResponse(userMsg.text, theme, (chunk, sources) => {
-        accumulatedText += chunk;
-        setMessages(prev => prev.map(m => m.id === botMsgId ? { 
-          ...m, 
-          text: accumulatedText, 
-          sources: sources ? [...(m.sources || []), ...sources] : m.sources 
-        } : m));
-      });
+      await getGeminiResponse(userMsg.text, theme, (chunk, sources) => { acc += chunk; setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, text: acc, sources } : m)); });
       setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, isStreaming: false } : m));
-    } catch (err) {
-      setMessages(prev => [...prev, { id: 'err', role: MessageRole.SYSTEM, text: 'CONNECTION FAILED.' }]);
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
-
-  const handleGenerateArtFromPrompt = async (prompt: string) => {
-    setIsLoading(true);
-    setRobotMood(RobotVisualMood.PAINTING);
-    robotRef.current?.triggerAnimation(RobotAnimation.DANCE);
-    const imageUrl = await generateImage(prompt, theme, artStyle);
-    if (imageUrl) {
-      setImagePreviewUrl(imageUrl);
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: MessageRole.BOT, text: `Neural mural complete: "${prompt}"`, imageUrl }]);
-    }
-    setIsLoading(false);
-  };
-
-  const handleGenerateArt = () => {
-    let prompt = inputText.trim();
-    if (!prompt) {
-      const lastUserMsg = messages.filter(m => m.role === MessageRole.USER).pop();
-      if (lastUserMsg) prompt = lastUserMsg.text;
-    }
-    if (prompt) handleGenerateArtFromPrompt(prompt);
-    setInputText('');
-  };
-
-  const getThemeColors = (t: SystemTheme) => {
-    switch (t) {
-      case SystemTheme.STORM_GRAY_BLUE: return { accent: '#7096ff', secondary: '#1a1e26' };
-      case SystemTheme.SANGUINE_NOIR: return { accent: '#990000', secondary: '#111111' };
-      case SystemTheme.SLATE_PHOSPHOR: return { accent: '#00ff99', secondary: '#1a1c1e' };
-      case SystemTheme.DEEP_TRENCH: return { accent: '#00e5ff', secondary: '#000814' };
-      case SystemTheme.CRIMSON_SHADOW: return { accent: '#ff1e1e', secondary: '#000000' };
-      case SystemTheme.INK_VERIDIAN: return { accent: '#00ffaa', secondary: '#080a08' };
-      case SystemTheme.ONYX: return { accent: '#ffffff', secondary: '#111111' };
-      case SystemTheme.PHANTOM: return { accent: '#8a2be2', secondary: '#222222' };
-      case SystemTheme.TOXIC: return { accent: '#CCFF00', secondary: '#FF3300' };
-      case SystemTheme.VIGILANTE: return { accent: '#ffd700', secondary: '#001f3f' };
-      case SystemTheme.PULP_FICTION: return { accent: '#ff4d4d', secondary: '#fffdd0' };
-      case SystemTheme.MUTANT_X: return { accent: '#adff2f', secondary: '#1a1a1a' };
-      case SystemTheme.MAGMA: return { accent: '#ff4500', secondary: '#000000' };
-      case SystemTheme.COBALT_STRIKE: return { accent: '#2e5bff', secondary: '#c0c0c0' };
-      case SystemTheme.NEON_BONE: return { accent: '#f5f5f5', secondary: '#0a0a0a' };
-      case SystemTheme.NIGHTSHADE: return { accent: '#4b0082', secondary: '#000000' };
-      case SystemTheme.SULFUR: return { accent: '#dfff00', secondary: '#333333' };
-      default: return { accent: '#39ff14', secondary: '#bc13fe' };
-    }
-  };
-
-  const { accent: accentColor } = getThemeColors(theme);
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black text-white selection:bg-neon-green selection:text-black flex flex-col">
+    <div className="relative h-screen w-full overflow-hidden bg-black text-white flex flex-col transition-colors duration-700">
       <div className="absolute inset-0 z-0">
-        <RobotCanvas ref={robotRef} style={robotStyle} size={robotSize} mood={robotMood} theme={theme} environment={environment} color={robotColor} />
+        <RobotCanvas 
+          ref={robotRef} 
+          style={robotStyle} 
+          size={robotSize} 
+          mood={robotMood} 
+          theme={theme} 
+          environment={environment} 
+          color={robotColor}
+          overheadLight={overheadLight}
+          accentLight={accentLight}
+          useManualLighting={useManualLighting}
+        />
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col p-4 md:p-8 pointer-events-none h-full overflow-hidden">
-        <header className="pointer-events-auto flex justify-between items-start w-full mb-2">
-          <div className="flex flex-col gap-0.5">
-            <h1 className="font-marker text-xl md:text-3xl -rotate-1 origin-left neon-text" style={{ color: accentColor }}>G-3 AI COMPANION</h1>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex gap-2">
-              <button 
-                onClick={() => robotRef.current?.resetView()} 
-                title="Reset Camera"
-                className="p-2 rounded-full border-2 font-bold pointer-events-auto shadow-lg bg-black/60 hover:bg-white hover:text-black transition-all" 
-                style={{ borderColor: accentColor, color: accentColor }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h3m12 0h3M12 3v3m0 12v3"></path></svg>
-              </button>
-              <button onClick={() => setIsQuickSettingsOpen(!isQuickSettingsOpen)} className="p-2 rounded-full border-2 font-bold pointer-events-auto shadow-lg bg-black/60 hover:bg-white hover:text-black transition-all" style={{ borderColor: accentColor, color: accentColor }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
-              </button>
-              <button onClick={toggleEnvironment} className="px-4 py-2 rounded-full border-2 font-bold pointer-events-auto shadow-lg text-[10px] md:text-sm bg-black/60 hover:bg-white hover:text-black transition-all uppercase" style={{ borderColor: accentColor, color: accentColor }}>
-                {environment.replace('_', ' ')}
-              </button>
-              <button onClick={toggleLiveVoice} className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 font-bold transition-all duration-300 pointer-events-auto shadow-lg text-[10px] md:text-sm ${isLiveActive ? 'bg-red-600 border-red-400 animate-pulse text-white' : 'bg-black/60 hover:bg-white hover:text-black'}`} style={!isLiveActive ? { borderColor: accentColor, color: accentColor } : {}}>
-                <span>{isLiveActive ? '⏹' : '🎤'}</span>
-                <span>{isLiveActive ? 'STOP' : 'LIVE'}</span>
-              </button>
-            </div>
-
-            {isQuickSettingsOpen && (
-              <div className="pointer-events-auto animate-in slide-in-from-top duration-300 w-64 p-4 bg-black/95 backdrop-blur-3xl border-2 rounded-2xl shadow-2xl space-y-4" style={{ borderColor: accentColor }}>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10px] font-black uppercase opacity-60">Neural Scale</label>
-                    <span className="text-[10px] font-mono font-bold" style={{ color: accentColor }}>{robotSize}x</span>
-                  </div>
-                  <input type="range" min="0.5" max="2" step="0.1" value={robotSize} onChange={(e) => setRobotSize(parseFloat(e.target.value))} className="w-full h-1 bg-white/20 rounded-lg appearance-none accent-white cursor-pointer" />
-                </div>
-                
-                <div className="flex items-center justify-between gap-4">
-                  <label className="text-[10px] font-black uppercase opacity-60">Armor Tint</label>
-                  <input type="color" value={robotColor} onChange={(e) => setRobotColor(e.target.value)} className="w-10 h-6 rounded bg-transparent cursor-pointer border-none" />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase opacity-60">Elite Themes</label>
-                  <div className="grid grid-cols-6 gap-1.5">
-                    {[SystemTheme.STORM_GRAY_BLUE, SystemTheme.SANGUINE_NOIR, SystemTheme.SLATE_PHOSPHOR, SystemTheme.DEEP_TRENCH, SystemTheme.CRIMSON_SHADOW, SystemTheme.INK_VERIDIAN].map(t => (
-                      <button 
-                        key={t}
-                        onClick={() => setTheme(t)}
-                        className={`w-full aspect-square rounded border-2 transition-all ${theme === t ? 'border-white scale-110' : 'border-white/10 hover:border-white/50'}`}
-                        style={{ backgroundColor: getThemeColors(t).accent }}
-                        title={t.toUpperCase()}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+      <div className="relative z-10 flex-1 flex flex-col p-4 md:p-8 pointer-events-none">
+        <header className="pointer-events-auto flex justify-between items-start w-full">
+          <h1 className="font-marker text-xl md:text-3xl neon-text transition-all duration-500" style={{ color: accentColor }}>G-3 COMPANION</h1>
+          <div className="flex gap-3">
+            <button onClick={cycleTheme} className="px-6 py-2 rounded-full border-2 font-bold pointer-events-auto bg-black/60 hover:bg-white/10 transition-all uppercase text-[10px] md:text-xs tracking-widest shadow-lg" style={{ borderColor: accentColor, color: accentColor }}>
+              {theme.replace('_', ' ')}
+            </button>
+            <button onClick={toggleLiveVoice} className={`flex items-center gap-2 px-6 py-2 rounded-full border-2 font-bold transition-all pointer-events-auto text-[10px] md:text-xs shadow-lg ${isLiveActive ? 'bg-red-600 border-red-400' : 'bg-black/60 hover:bg-white/10'}`} style={!isLiveActive ? { borderColor: accentColor, color: accentColor } : {}}>
+              <div className={`w-2 h-2 rounded-full ${isLiveActive ? 'bg-white animate-pulse' : 'bg-current'}`}></div>
+              <span>{isLiveActive ? 'STOP' : 'LIVE'}</span>
+            </button>
           </div>
         </header>
 
         {isLiveActive && liveBotTranscription && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 px-6 pb-20">
-            <div className="max-w-6xl w-full text-center">
-              <p className="cool-spoken-words font-marker leading-tight transition-all duration-300" style={{ backgroundImage: `linear-gradient(to right, ${accentColor}, #fff, ${accentColor})`, textShadow: `0 0 15px ${accentColor}66`, fontSize: `${transcriptionFontSize}px` }}>
-                {liveBotTranscription}
-              </p>
-            </div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 px-6">
+            <p className="font-marker text-center cool-spoken-words drop-shadow-2xl transition-all duration-500" style={{ backgroundImage: `linear-gradient(to right, ${accentColor}, #fff)`, fontSize: `${transcriptionFontSize}px` }}>
+              {liveBotTranscription}
+            </p>
           </div>
         )}
 
-        <div className="mt-auto w-full flex flex-col items-center justify-end pointer-events-none pb-4">
+        <div className="mt-auto w-full flex flex-col items-center pb-8">
           <button onClick={() => { setIsChatVisible(true); setActiveTab('CHAT'); }} className="pointer-events-auto group relative mb-4">
-              <div className="absolute inset-0 blur-xl opacity-40 group-hover:opacity-100 transition-opacity rounded-full" style={{ backgroundColor: accentColor }}></div>
-              <div className={`relative bg-black/80 border-2 px-10 py-4 rounded-full font-marker tracking-[0.3em] uppercase transition-all hover:scale-105 active:scale-95 shadow-2xl ${loopEmotes ? 'animate-pulse' : ''}`} style={{ borderColor: accentColor, color: accentColor }}>
+              <div className="absolute inset-0 blur-xl opacity-40 group-hover:opacity-80 transition-all duration-500 rounded-full" style={{ backgroundColor: accentColor }}></div>
+              <div className="relative bg-black/80 border-2 px-12 py-5 rounded-full font-marker tracking-widest uppercase transition-all duration-500 hover:scale-105 active:scale-95 shadow-2xl" style={{ borderColor: accentColor, color: accentColor }}>
                  NEURAL LINK
               </div>
           </button>
 
           {isChatVisible && (
-            <main className="fixed inset-x-0 bottom-0 z-50 w-full max-w-4xl mx-auto flex flex-col pointer-events-auto animate-[floatUp_0.3s_ease-out] overflow-hidden h-[90dvh] bg-black/98 lg:relative lg:h-[75dvh] border-t-2" style={{ borderColor: accentColor }}>
+            <main className="fixed inset-x-0 bottom-0 z-50 w-full max-w-4xl mx-auto flex flex-col pointer-events-auto bg-black border-t-2 overflow-hidden h-[85dvh] transition-all duration-500 shadow-[0_-20px_60px_rgba(0,0,0,0.9)]" style={{ borderColor: accentColor }}>
               <div className="flex bg-zinc-900 border-b border-white/10 shrink-0">
-                <button 
-                  onClick={() => setActiveTab('CHAT')}
-                  className={`flex-1 py-4 text-xs font-bold tracking-widest uppercase transition-all ${activeTab === 'CHAT' ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}
-                  style={activeTab === 'CHAT' ? { color: accentColor } : {}}
-                >
-                  MESSAGES
-                </button>
-                <button 
-                  onClick={() => setActiveTab('CONFIG')}
-                  className={`flex-1 py-4 text-xs font-bold tracking-widest uppercase transition-all ${activeTab === 'CONFIG' ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}
-                  style={activeTab === 'CONFIG' ? { color: accentColor } : {}}
-                >
-                  CONFIG
-                </button>
-                <button onClick={() => setIsChatVisible(false)} className="px-6 py-4 text-lg font-bold hover:bg-red-500/20 transition-colors">✕</button>
+                <button onClick={() => setActiveTab('CHAT')} className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'CHAT' ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`} style={activeTab === 'CHAT' ? { color: accentColor } : {}}>MESSAGES</button>
+                <button onClick={() => setActiveTab('CONFIG')} className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'CONFIG' ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`} style={activeTab === 'CONFIG' ? { color: accentColor } : {}}>NEURAL CONFIG</button>
+                <button onClick={() => setIsChatVisible(false)} className="px-8 py-4 font-bold hover:bg-white/10 transition-colors">✕</button>
               </div>
 
               <div className="flex-1 overflow-hidden flex flex-col">
                 {activeTab === 'CHAT' ? (
                   <div className="flex-1 flex flex-col p-4 h-full">
-                    <div className="flex-1 overflow-y-auto space-y-6 custom-scrollbar mb-4 px-2">
+                    <div className="flex-1 overflow-y-auto space-y-4 mb-4 px-2 custom-scrollbar">
                       {messages.map((msg) => (
-                        <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'}`}>
-                          <div 
-                            className={`max-w-[85%] rounded-2xl px-5 py-4 text-sm md:text-base font-black border-l-4 shadow-2xl ${msg.role === MessageRole.USER ? 'bg-zinc-800 border-white/40 text-white' : 'bg-zinc-950'}`} 
-                            style={msg.role !== MessageRole.USER ? { borderColor: accentColor, color: '#ffffff', textShadow: '0 0 10px rgba(0,0,0,1)' } : {}}
-                          >
-                            <span className="whitespace-pre-wrap leading-relaxed block filter drop-shadow-[0_1.5px_1.5px_rgba(0,0,0,0.9)]">{msg.text}</span>
-                            {msg.imageUrl && <img src={msg.imageUrl} className="mt-4 rounded-xl max-h-80 w-full object-cover cursor-pointer hover:opacity-95 transition-opacity border-2 border-white/20 shadow-black shadow-lg" onClick={() => setImagePreviewUrl(msg.imageUrl || null)}/>}
-                            {msg.sources && msg.sources.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-white/20 flex flex-wrap gap-2">
-                                {msg.sources.map((s, idx) => (
-                                  <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] font-black uppercase tracking-tight bg-white/10 hover:bg-white/25 px-2 py-1 rounded transition-colors" style={{ color: accentColor }}>
-                                    {s.title}
-                                  </a>
-                                ))}
-                              </div>
-                            )}
+                        <div key={msg.id} className={`flex ${msg.role === MessageRole.USER ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-2xl px-5 py-3 text-sm font-bold border-l-4 transition-all shadow-xl ${msg.role === MessageRole.USER ? 'bg-zinc-800' : 'bg-zinc-950'}`} style={msg.role !== MessageRole.USER ? { borderColor: accentColor } : {}}>
+                            <span>{msg.text}</span>
+                            {msg.imageUrl && <img src={msg.imageUrl} className="mt-3 rounded-xl border border-white/10 max-h-72 w-full object-cover shadow-2xl cursor-pointer" onClick={() => setImagePreviewUrl(msg.imageUrl || null)}/>}
                           </div>
                         </div>
                       ))}
                       <div ref={chatEndRef} />
                     </div>
-                    <div className="flex gap-2 p-2">
-                      <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="NEURAL COMMAND..." className="flex-1 bg-white/5 border border-white/20 rounded-2xl px-5 py-4 text-sm md:text-base font-bold focus:outline-none focus:border-white/50 transition-all placeholder:opacity-40" />
-                      <button onClick={handleSendMessage} disabled={isLoading} className="font-bold px-6 rounded-2xl text-lg text-white hover:brightness-125 active:scale-95 transition-all shadow-xl" style={{ backgroundColor: accentColor }}>⚡</button>
-                      <button onClick={handleGenerateArt} disabled={isLoading} className="font-bold px-6 rounded-2xl text-lg text-white bg-zinc-800 hover:bg-zinc-700 active:scale-95 transition-all shadow-xl">🎨</button>
+                    <div className="flex gap-2 p-2 bg-zinc-900/50 rounded-2xl border border-white/5">
+                      <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="NEURAL COMMAND..." className="flex-1 bg-transparent px-4 py-3 text-sm focus:outline-none placeholder:opacity-20 font-bold" />
+                      <button onClick={handleSendMessage} disabled={isLoading} className="px-8 rounded-xl font-bold transition-transform active:scale-95 shadow-lg" style={{ backgroundColor: accentColor, color: '#000' }}>⚡</button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar uppercase">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">System Theme</label>
-                        <select value={theme} onChange={(e) => setTheme(e.target.value as SystemTheme)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
-                          {Object.values(SystemTheme).map(t => <option key={t} value={t} className="bg-zinc-900">{t.toUpperCase()}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-3">
-                        <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">Art Style</label>
-                        <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
-                          {Object.values(ArtStyle).map(s => <option key={s} value={s} className="bg-zinc-900">{s.toUpperCase()}</option>)}
-                        </select>
+                    {/* General Section */}
+                    <div className="space-y-6">
+                      <h3 className="text-xs font-black tracking-[0.3em] opacity-30 border-b border-white/10 pb-2">CORE SYSTEMS</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-black opacity-40 tracking-[0.2em]">SYSTEM THEME</label>
+                            <select value={theme} onChange={(e) => setTheme(e.target.value as SystemTheme)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-xs font-bold outline-none cursor-pointer hover:border-white/30 transition-all appearance-none">
+                              {Object.values(SystemTheme).map(t => <option key={t} value={t}>{t.replace('_', ' ').toUpperCase()}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-black opacity-40 tracking-[0.2em]">ART STYLE</label>
+                            <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-xs font-bold outline-none cursor-pointer hover:border-white/30 transition-all appearance-none">
+                              {Object.values(ArtStyle).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                            </select>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">Armor Style</label>
-                        <select value={robotStyle} onChange={(e) => setRobotStyle(e.target.value as RobotStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
-                          {Object.values(RobotStyle).map(s => <option key={s} value={s} className="bg-zinc-900">{s.toUpperCase()}</option>)}
-                        </select>
+                    {/* Robot Armor Section */}
+                    <div className="space-y-6">
+                      <h3 className="text-xs font-black tracking-[0.3em] opacity-30 border-b border-white/10 pb-2">ROBOTICS</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-black opacity-40 tracking-[0.2em]">ROBOT ARMOR</label>
+                            <select value={robotStyle} onChange={(e) => setRobotStyle(e.target.value as RobotStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-xs font-bold outline-none cursor-pointer hover:border-white/30 transition-all appearance-none">
+                              {Object.values(RobotStyle).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-black opacity-40 tracking-[0.2em]">FORCE EMOTE</label>
+                            <div className="flex gap-2">
+                              <select onChange={(e) => e.target.value && robotRef.current?.triggerAnimation(e.target.value as RobotAnimation, loopEmotes)} className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-xs font-bold outline-none cursor-pointer hover:border-white/30 transition-all appearance-none">
+                                <option value="">TRIGGER ACTION...</option>
+                                {Object.values(RobotAnimation).map(anim => <option key={anim} value={anim}>{anim.toUpperCase()}</option>)}
+                              </select>
+                              <button 
+                                onClick={() => setLoopEmotes(!loopEmotes)} 
+                                className={`px-4 rounded-xl border-2 font-black transition-all text-xs ${loopEmotes ? 'bg-white text-black border-white' : 'border-white/10 opacity-40'}`}
+                              >
+                                ∞
+                              </button>
+                            </div>
+                        </div>
                       </div>
-                      <div className="space-y-3">
-                        <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">Force Emote</label>
-                        <div className="flex gap-2">
-                           <select onChange={(e) => robotRef.current?.triggerAnimation(e.target.value as RobotAnimation, loopEmotes)} className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
-                             <option value="" className="bg-zinc-900">TRIGGER EMOTE...</option>
-                             {Object.values(RobotAnimation).map(anim => <option key={anim} value={anim} className="bg-zinc-900">{anim.toUpperCase()}</option>)}
-                           </select>
+                      <div className="flex items-center justify-between p-6 bg-zinc-900/50 border border-white/5 rounded-2xl">
+                          <div className="flex flex-col">
+                            <label className="text-[10px] font-black opacity-40 tracking-[0.2em]">ARMOR TINT</label>
+                            <span className="text-xs font-mono font-bold tracking-widest mt-1 opacity-80">{robotColor}</span>
+                          </div>
+                          <input type="color" value={robotColor} onChange={(e) => setRobotColor(e.target.value)} className="w-16 h-12 rounded-lg bg-transparent cursor-pointer border-none" />
+                      </div>
+                      <div className="space-y-4">
+                          <div className="flex justify-between items-end">
+                            <label className="text-[10px] font-black opacity-40 tracking-[0.2em]">NEURAL SCALE</label>
+                            <span className="text-xs font-mono font-bold" style={{ color: accentColor }}>{robotSize.toFixed(1)}X</span>
+                          </div>
+                          <input type="range" min="0.5" max="2" step="0.1" value={robotSize} onChange={(e) => setRobotSize(parseFloat(e.target.value))} className="w-full h-1.5 bg-white/10 rounded-lg appearance-none accent-white cursor-pointer" />
+                      </div>
+                    </div>
+
+                    {/* Lighting Control Section */}
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                        <h3 className="text-xs font-black tracking-[0.3em] opacity-30">SCENE ILLUMINATION</h3>
+                        <div className="flex items-center gap-3">
+                           <span className="text-[9px] font-black opacity-40">MANUAL MODE</span>
                            <button 
-                             onClick={() => setLoopEmotes(!loopEmotes)} 
-                             className={`px-4 rounded-xl border-2 font-black transition-all ${loopEmotes ? 'bg-white text-black border-white' : 'border-white/20 opacity-50'}`}
-                             title="Toggle Animation Looping"
+                            onClick={() => setUseManualLighting(!useManualLighting)}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${useManualLighting ? 'bg-green-500' : 'bg-zinc-700'}`}
                            >
-                             ∞
+                             <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${useManualLighting ? 'left-6' : 'left-1'}`} />
                            </button>
                         </div>
                       </div>
+
+                      {useManualLighting ? (
+                        <div className="space-y-8 animate-in fade-in duration-500">
+                          {/* Overhead Controls */}
+                          <div className="space-y-4 bg-zinc-900/30 p-6 rounded-2xl border border-white/5">
+                            <h4 className="text-[10px] font-black tracking-widest opacity-60">OVERHEAD SPOTLIGHT</h4>
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-black opacity-40">INTENSITY</label>
+                              <span className="text-xs font-mono font-bold">{overheadLight.intensity}</span>
+                            </div>
+                            <input type="range" min="0" max="1000" step="10" value={overheadLight.intensity} onChange={(e) => setOverheadLight({...overheadLight, intensity: parseInt(e.target.value)})} className="w-full h-1 bg-white/10 rounded-lg appearance-none accent-white" />
+                            
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-black opacity-40">HEIGHT</label>
+                              <span className="text-xs font-mono font-bold">{overheadLight.position.y}M</span>
+                            </div>
+                            <input type="range" min="5" max="50" step="1" value={overheadLight.position.y} onChange={(e) => setOverheadLight({...overheadLight, position: {...overheadLight.position, y: parseInt(e.target.value)}})} className="w-full h-1 bg-white/10 rounded-lg appearance-none accent-white" />
+                            
+                            <div className="flex items-center justify-between mt-4">
+                              <label className="text-[9px] font-black opacity-40">COLOR</label>
+                              <input type="color" value={overheadLight.color} onChange={(e) => setOverheadLight({...overheadLight, color: e.target.value})} className="w-12 h-8 rounded bg-transparent cursor-pointer border-none" />
+                            </div>
+                          </div>
+
+                          {/* Accent Controls */}
+                          <div className="space-y-4 bg-zinc-900/30 p-6 rounded-2xl border border-white/5">
+                            <h4 className="text-[10px] font-black tracking-widest opacity-60">ACCENT POINTLIGHT</h4>
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-black opacity-40">INTENSITY</label>
+                              <span className="text-xs font-mono font-bold">{accentLight.intensity}</span>
+                            </div>
+                            <input type="range" min="0" max="500" step="5" value={accentLight.intensity} onChange={(e) => setAccentLight({...accentLight, intensity: parseInt(e.target.value)})} className="w-full h-1 bg-white/10 rounded-lg appearance-none accent-white" />
+                            
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-black opacity-40">DISTANCE (Z)</label>
+                              <span className="text-xs font-mono font-bold">{accentLight.position.z}M</span>
+                            </div>
+                            <input type="range" min="0" max="30" step="1" value={accentLight.position.z} onChange={(e) => setAccentLight({...accentLight, position: {...accentLight.position, z: parseInt(e.target.value)}})} className="w-full h-1 bg-white/10 rounded-lg appearance-none accent-white" />
+                            
+                            <div className="flex items-center justify-between mt-4">
+                              <label className="text-[9px] font-black opacity-40">COLOR</label>
+                              <input type="color" value={accentLight.color} onChange={(e) => setAccentLight({...accentLight, color: e.target.value})} className="w-12 h-8 rounded bg-transparent cursor-pointer border-none" />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-12 flex flex-col items-center justify-center opacity-20 gap-4 border border-dashed border-white/10 rounded-2xl">
+                           <span className="text-[10px] font-black tracking-[0.2em]">DYNAMIC NEURAL LIGHTING ACTIVE</span>
+                           <span className="text-[8px] font-bold">LIGHTS ARE REACTING TO SYSTEM THEME & MOOD</span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="space-y-8">
-                      <div className="flex items-center justify-between p-5 bg-white/5 rounded-2xl border border-white/10">
-                         <div className="flex flex-col">
-                            <span className="text-xs font-black uppercase opacity-60">Armor Color</span>
-                            <span className="text-sm font-mono mt-1 font-bold tracking-wider">{robotColor}</span>
-                         </div>
-                         <input type="color" value={robotColor} onChange={(e) => setRobotColor(e.target.value)} className="w-20 h-10 rounded-xl bg-transparent cursor-pointer border-none" />
-                      </div>
-
+                    {/* UI/UX Section */}
+                    <div className="space-y-6">
+                      <h3 className="text-xs font-black tracking-[0.3em] opacity-30 border-b border-white/10 pb-2">INTERFACE</h3>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-end">
-                           <label className="text-xs font-black uppercase opacity-60 ml-1">Neural Scale</label>
-                           <span className="text-sm font-mono font-black" style={{ color: accentColor }}>{robotSize}x</span>
-                        </div>
-                        <input type="range" min="0.5" max="2" step="0.1" value={robotSize} onChange={(e) => setRobotSize(parseFloat(e.target.value))} className="w-full h-2 bg-white/10 rounded-lg appearance-none accent-white cursor-pointer" />
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-end">
-                           <label className="text-xs font-black uppercase opacity-60 ml-1">Transcription Size</label>
-                           <span className="text-sm font-mono font-black" style={{ color: accentColor }}>{transcriptionFontSize}px</span>
-                        </div>
-                        <input type="range" min="12" max="120" step="1" value={transcriptionFontSize} onChange={(e) => setTranscriptionFontSize(parseInt(e.target.value))} className="w-full h-2 bg-white/10 rounded-lg appearance-none accent-white cursor-pointer" />
+                          <div className="flex justify-between items-end">
+                            <label className="text-[10px] font-black opacity-40 tracking-[0.2em]">TRANSCRIPTION SIZE</label>
+                            <span className="text-xs font-mono font-bold" style={{ color: accentColor }}>{transcriptionFontSize}PX</span>
+                          </div>
+                          <input type="range" min="12" max="120" step="1" value={transcriptionFontSize} onChange={(e) => setTranscriptionFontSize(parseInt(e.target.value))} className="w-full h-1.5 bg-white/10 rounded-lg appearance-none accent-white cursor-pointer" />
                       </div>
                     </div>
 
@@ -513,7 +434,7 @@ const App: React.FC = () => {
                         className="w-full py-5 rounded-2xl font-marker text-lg tracking-[0.2em] uppercase transition-all shadow-2xl hover:brightness-125 active:scale-[0.98]" 
                         style={{ backgroundColor: accentColor, color: '#000' }}
                       >
-                        {saveStatus === 'IDLE' ? 'SAVE NEURAL CORE' : saveStatus}
+                        {saveStatus === 'IDLE' ? 'SAVE NEURAL STATE' : saveStatus}
                       </button>
                     </div>
                   </div>
@@ -525,23 +446,17 @@ const App: React.FC = () => {
       </div>
 
       {imagePreviewUrl && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/98 p-4 md:p-12 animate-in fade-in zoom-in duration-300 backdrop-blur-md" onClick={() => setImagePreviewUrl(null)}>
-          <div className="relative max-w-5xl w-full group">
-              <img src={imagePreviewUrl} className="w-full h-auto max-h-[85dvh] object-contain rounded-3xl border-2 shadow-[0_0_50px_rgba(0,0,0,0.5)]" style={{ borderColor: accentColor }} />
-              <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="bg-black/60 hover:bg-black/90 p-3 rounded-full text-white backdrop-blur-md transition-all">✕</button>
-              </div>
-          </div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-6 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setImagePreviewUrl(null)}>
+            <img src={imagePreviewUrl} className="max-w-full max-h-[90dvh] rounded-3xl border-2 shadow-2xl scale-in-95 animate-in duration-300 transition-all duration-500" style={{ borderColor: accentColor }} />
         </div>
       )}
 
       <style>{`
-        @keyframes floatUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .cool-spoken-words { -webkit-background-clip: text; background-clip: text; color: transparent; pointer-events: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        .cool-spoken-words { -webkit-background-clip: text; background-clip: text; color: transparent; pointer-events: none; }
       `}</style>
     </div>
   );

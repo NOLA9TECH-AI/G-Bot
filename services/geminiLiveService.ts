@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, LiveServerMessage, Modality, Type, Blob } from '@google/genai';
-import { SystemTheme, RobotAnimation, ArtStyle } from '../types';
+import { SystemTheme, RobotAnimation, ArtStyle, RobotStyle } from '../types';
 
 export interface LiveCallbacks {
   onAudioChunk: () => void;
@@ -88,9 +89,9 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
   outputNode.connect(outputAudioContext.destination);
   const sources = new Set<AudioBufferSourceNode>();
 
-  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy. If the theme is Phantom, Onyx, Nebula, or Ghost, adopt a slightly more mysterious, cryptic, and deep tone, as if you are a phantom in the machine.";
+  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy.";
 
-  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. You can dance with the user. If they want to party, use the 'DANCE_' emotes. For dances, always set 'loop' to true so the session stays active. If the user asks you to keep doing an action, set 'loop' to true. If you need to focus, shrink yourself. If your words need to be emphasized, change the transcription font size.`;
+  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. You can change your armor style to Cyber, Street, Gold, or Stealth. If you need to focus, shrink yourself. If your words need to be emphasized, change the transcription font size.`;
 
   const sessionPromise = ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -236,6 +237,20 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
                 } 
               },
               required: ['theme']
+            }
+          },
+          {
+            name: 'set_robot_style',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Change your visual armor style (Cyber, Street, Gold, Stealth).',
+              properties: { 
+                style: { 
+                  type: Type.STRING, 
+                  enum: Object.values(RobotStyle) 
+                } 
+              },
+              required: ['style']
             }
           },
           {
