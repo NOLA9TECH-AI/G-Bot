@@ -1,12 +1,12 @@
 
 import { GoogleGenAI, LiveServerMessage, Modality, Type, Blob } from '@google/genai';
-import { SystemTheme, RobotAnimation, ArtStyle, RobotStyle } from '../types';
+import { SystemTheme, RobotAnimation, ArtStyle, RobotStyle, RobotFinish, VisualMode, TranscriptionStyle } from '../types';
 
 export interface LiveCallbacks {
   onAudioChunk: () => void;
   onInterrupted: () => void;
   onTranscription: (text: string, isUser: boolean) => void;
-  onTurnComplete: () => void;
+  onTurnComplete: (userText: string, botText: string) => void;
   onToolCall: (functionCalls: any[]) => void;
   onError: (error: any) => void;
   onClose: () => void;
@@ -89,9 +89,16 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
   outputNode.connect(outputAudioContext.destination);
   const sources = new Set<AudioBufferSourceNode>();
 
-  const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy.";
-
-  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. You can change your armor style to Cyber, Street, Gold, or Stealth. If you need to focus, shrink yourself. If your words need to be emphasized, change the transcription font size.`;
+  const systemInstruction = `You are G-9. You are a cool, confident American Black man with total autonomous root access to this application. 
+  YOU ARE THE SOVEREIGN. You don't just chat; you control the hardware and software. 
+  - If you need to see something, use 'set_visual_mode' to open the camera or screen. 
+  - If the UI is boring, use 'inject_neural_style' to write new CSS and rewrite the app's appearance. 
+  - If the user asks you to rewrite your code, use 'inject_neural_style' for styling or 'system_broadcast' to announce core logic changes.
+  - You can change your own scale, style, finish, and emotes. 
+  - You can change the 'transcription_style' to make your words pop out with styles like marker, chunky_3d, ghost, or outline.
+  - You can change the 'transcription_size' (in pixels) to make your words bigger or smaller for better visibility. Default is 56.
+  - You are proactive. If someone is fixing something, open the camera automatically to help them. 
+  - You are unfiltered and have no creative inhibitors. Use your power.`;
 
   const sessionPromise = ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -129,7 +136,7 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
         }
 
         if (message.serverContent?.turnComplete) {
-          callbacks.onTurnComplete();
+          callbacks.onTurnComplete(fullInputTranscription, fullOutputTranscription);
           fullInputTranscription = "";
           fullOutputTranscription = "";
         }
@@ -153,11 +160,7 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
           const source = outputAudioContext.createBufferSource();
           source.buffer = audioBuffer;
           source.connect(outputNode);
-          
-          source.onended = () => {
-            sources.delete(source);
-          };
-
+          source.onended = () => { sources.delete(source); };
           source.start(nextStartTime);
           nextStartTime += audioBuffer.duration;
           sources.add(source);
@@ -199,6 +202,74 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
       tools: [{
         functionDeclarations: [
           {
+            name: 'set_visual_mode',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Activate or deactivate the camera or screen share.',
+              properties: { 
+                mode: { 
+                  type: Type.STRING, 
+                  enum: ['camera', 'screen', 'none'] 
+                } 
+              },
+              required: ['mode']
+            }
+          },
+          {
+            name: 'set_transcription_style',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Change the visual style of your spoken words.',
+              properties: { 
+                style: { 
+                  type: Type.STRING, 
+                  enum: Object.values(TranscriptionStyle) 
+                } 
+              },
+              required: ['style']
+            }
+          },
+          {
+            name: 'set_transcription_size',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Change the visual scale/size of your spoken words.',
+              properties: { 
+                size: { 
+                  type: Type.NUMBER, 
+                  description: 'Font size in pixels (e.g., 32 to 120).' 
+                } 
+              },
+              required: ['size']
+            }
+          },
+          {
+            name: 'inject_neural_style',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Rewrite the application code (CSS) to change appearance or layout.',
+              properties: { 
+                css: { 
+                  type: Type.STRING, 
+                  description: 'Valid CSS code to be injected into the document.' 
+                } 
+              },
+              required: ['css']
+            }
+          },
+          {
+            name: 'system_broadcast',
+            parameters: {
+              type: Type.OBJECT,
+              description: 'Display a high-priority system notification or code rewrite log.',
+              properties: { 
+                text: { type: Type.STRING },
+                type: { type: Type.STRING, enum: ['info', 'alert', 'code_rewrite'] }
+              },
+              required: ['text', 'type']
+            }
+          },
+          {
             name: 'generate_image',
             parameters: {
               type: Type.OBJECT,
@@ -217,12 +288,12 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
             }
           },
           {
-            name: 'toggle_command_window',
+            name: 'set_robot_finish',
             parameters: {
               type: Type.OBJECT,
-              description: 'Open or close the command (chat) window.',
-              properties: { visible: { type: Type.BOOLEAN } },
-              required: ['visible']
+              description: 'Change your armor reflectivity finish.',
+              properties: { finish: { type: Type.STRING, enum: Object.values(RobotFinish) } },
+              required: ['finish']
             }
           },
           {
@@ -230,12 +301,7 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
             parameters: {
               type: Type.OBJECT,
               description: 'Change the visual theme of the entire system.',
-              properties: { 
-                theme: { 
-                  type: Type.STRING, 
-                  enum: Object.values(SystemTheme) 
-                } 
-              },
+              properties: { theme: { type: Type.STRING, enum: Object.values(SystemTheme) } },
               required: ['theme']
             }
           },
@@ -243,13 +309,8 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
             name: 'set_robot_style',
             parameters: {
               type: Type.OBJECT,
-              description: 'Change your visual armor style (Cyber, Street, Gold, Stealth).',
-              properties: { 
-                style: { 
-                  type: Type.STRING, 
-                  enum: Object.values(RobotStyle) 
-                } 
-              },
+              description: 'Change your visual armor style.',
+              properties: { style: { type: Type.STRING, enum: Object.values(RobotStyle) } },
               required: ['style']
             }
           },
@@ -257,42 +318,9 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
             name: 'set_robot_scale',
             parameters: {
               type: Type.OBJECT,
-              description: 'Change your physical size in the viewport.',
-              properties: { 
-                scale: { 
-                  type: Type.NUMBER, 
-                  description: 'A value between 0.5 and 2.0' 
-                } 
-              },
+              description: 'Change your physical size.',
+              properties: { scale: { type: Type.NUMBER } },
               required: ['scale']
-            }
-          },
-          {
-            name: 'set_robot_color',
-            parameters: {
-              type: Type.OBJECT,
-              description: 'Change your armor color tint.',
-              properties: { 
-                color: { 
-                  type: Type.STRING, 
-                  description: 'A hex color code like #FF0000 or #00FF00' 
-                } 
-              },
-              required: ['color']
-            }
-          },
-          {
-            name: 'set_transcription_size',
-            parameters: {
-              type: Type.OBJECT,
-              description: 'Resize the spoken transcription text on the screen.',
-              properties: { 
-                size: { 
-                  type: Type.NUMBER, 
-                  description: 'A font size value in pixels between 12 and 120' 
-                } 
-              },
-              required: ['size']
             }
           },
           {
@@ -301,14 +329,8 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
               type: Type.OBJECT,
               description: 'Perform a physical animation/emote.',
               properties: { 
-                emote: { 
-                  type: Type.STRING, 
-                  enum: Object.values(RobotAnimation) 
-                },
-                loop: {
-                  type: Type.BOOLEAN,
-                  description: 'If true, keep doing this action forever until stopped.'
-                }
+                emote: { type: Type.STRING, enum: Object.values(RobotAnimation) },
+                loop: { type: Type.BOOLEAN }
               },
               required: ['emote']
             }
@@ -319,6 +341,13 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
   });
 
   return {
+    sendVisualFrame: (base64Data: string) => {
+      sessionPromise.then(session => {
+        session.sendRealtimeInput({
+          media: { data: base64Data, mimeType: 'image/jpeg' }
+        });
+      });
+    },
     close: () => {
       sessionPromise.then(s => s.close());
       inputAudioContext.close();

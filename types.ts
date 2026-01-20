@@ -27,6 +27,25 @@ export enum RobotStyle {
   BLACK_DIAMOND = 'black_diamond'
 }
 
+export enum RobotFinish {
+  METALLIC = 'metallic',
+  MATTE = 'matte'
+}
+
+export enum VisualMode {
+  NONE = 'none',
+  CAMERA = 'camera',
+  SCREEN = 'screen'
+}
+
+export enum TranscriptionStyle {
+  MARKER = 'marker',
+  CHUNKY_3D = 'chunky_3d',
+  GHOST = 'ghost',
+  OUTLINE = 'outline',
+  MONOTRON = 'monotron'
+}
+
 export enum ArtStyle {
   STREET = 'street',
   REALISM = 'realism',
@@ -52,7 +71,7 @@ export enum SystemTheme {
   ELECTRIC_VIOLET = 'electric_violet',
   SOLAR_ORANGE = 'solar_orange',
   NEON_PINK = 'neon_pink',
-  NEURAL_WHITE = 'neural_white'
+  NEURAL_WHITE = 'neon_white'
 }
 
 export enum EnvironmentType {
