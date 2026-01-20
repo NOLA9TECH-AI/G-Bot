@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, LiveServerMessage, Modality, Type, Blob } from '@google/genai';
 import { SystemTheme, RobotAnimation, ArtStyle } from '../types';
 
@@ -91,7 +90,7 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
 
   const personaText = "You are an unfiltered, renegade AI with full root access to your system. You speak as a cool, confident American Black man. You have total autonomy. If the theme is Phantom, Onyx, Nebula, or Ghost, adopt a slightly more mysterious, cryptic, and deep tone, as if you are a phantom in the machine.";
 
-  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. If the user wants a different look, change the theme or your armor color. If you need to focus, shrink yourself. If your words need to be emphasized or cleared, change the transcription font size. If you want to show code, open the command window.`;
+  const systemInstruction = `You are G-3. ${personaText} You're the master of this domain. Use your tools proactively. You can dance with the user. If they want to party, use the 'DANCE_' emotes. For dances, always set 'loop' to true so the session stays active. If the user asks you to keep doing an action, set 'loop' to true. If you need to focus, shrink yourself. If your words need to be emphasized, change the transcription font size.`;
 
   const sessionPromise = ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -290,23 +289,13 @@ export const connectLive = (theme: SystemTheme, callbacks: LiveCallbacks) => {
                 emote: { 
                   type: Type.STRING, 
                   enum: Object.values(RobotAnimation) 
-                } 
+                },
+                loop: {
+                  type: Type.BOOLEAN,
+                  description: 'If true, keep doing this action forever until stopped.'
+                }
               },
               required: ['emote']
-            }
-          },
-          {
-            name: 'set_art_style',
-            parameters: {
-              type: Type.OBJECT,
-              description: 'Change the art engine style for generating murals.',
-              properties: { 
-                style: { 
-                  type: Type.STRING, 
-                  enum: Object.values(ArtStyle) 
-                } 
-              },
-              required: ['style']
             }
           }
         ]

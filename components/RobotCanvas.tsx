@@ -16,12 +16,11 @@ interface RobotCanvasProps {
 }
 
 export interface RobotRef {
-  triggerAnimation: (name: RobotAnimation) => void;
+  triggerAnimation: (name: RobotAnimation, loop?: boolean) => void;
+  resetView: () => void;
 }
 
 const MODEL_URL = 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
-
-const textureCache: { [key: string]: THREE.CanvasTexture } = {};
 
 const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood, theme, environment, color }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,12 +35,15 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
   const groundRef = useRef<THREE.Mesh | null>(null);
   const environmentGroupRef = useRef<THREE.Group>(new THREE.Group());
   const robotLightRef = useRef<THREE.PointLight | null>(null);
-  
-  const raycasterRef = useRef(new THREE.Raycaster());
-  const mouseRef = useRef(new THREE.Vector2());
 
   const getThemeAccentHex = () => {
     switch (theme) {
+      case SystemTheme.STORM_GRAY_BLUE: return 0x7096ff;
+      case SystemTheme.SANGUINE_NOIR: return 0x990000;
+      case SystemTheme.SLATE_PHOSPHOR: return 0x00ff99;
+      case SystemTheme.DEEP_TRENCH: return 0x00e5ff;
+      case SystemTheme.CRIMSON_SHADOW: return 0xff1e1e;
+      case SystemTheme.INK_VERIDIAN: return 0x00ffaa;
       case SystemTheme.HOOD: return 0xFFD700;
       case SystemTheme.TOXIC: return 0xCCFF00;
       case SystemTheme.FROST: return 0x00FFFF;
@@ -60,98 +62,40 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
       case SystemTheme.COBALT: return 0x2563eb;
       case SystemTheme.TITAN: return 0xd4af37;
       case SystemTheme.CRIMSON: return 0x991b1b;
+      case SystemTheme.MAGMA: return 0xff4500;
+      case SystemTheme.COBALT_STRIKE: return 0x2e5bff;
+      case SystemTheme.NEON_BONE: return 0xf5f5f5;
+      case SystemTheme.NIGHTSHADE: return 0x4b0082;
+      case SystemTheme.SULFUR: return 0xdfff00;
+      case SystemTheme.NOIR_COMIC: return 0xffffff;
+      case SystemTheme.VIGILANTE: return 0xffd700;
+      case SystemTheme.PULP_FICTION: return 0xff4d4d;
+      case SystemTheme.MUTANT_X: return 0xadff2f;
+      case SystemTheme.COSMIC_RAYS: return 0xff00ff;
       default: return 0x39ff14;
     }
   };
 
-  const clearEnvironment = () => {
-    while (environmentGroupRef.current.children.length > 0) {
-      const obj = environmentGroupRef.current.children[0];
-      if ((obj as any).geometry) (obj as any).geometry.dispose();
-      if ((obj as any).material) {
-        if (Array.isArray((obj as any).material)) {
-          (obj as any).material.forEach((m: any) => m.dispose());
-        } else {
-          (obj as any).material.dispose();
-        }
-      }
-      environmentGroupRef.current.remove(obj);
+  const getMoodColor = () => {
+    switch (mood) {
+      case RobotVisualMood.HAPPY: return 0x00ff88;
+      case RobotVisualMood.EXCITED: return 0xffff00;
+      case RobotVisualMood.ANGRY: return 0xff1100;
+      case RobotVisualMood.SAD: return 0x0055ff;
+      case RobotVisualMood.CURIOUS: return 0xbb00ff;
+      case RobotVisualMood.TALKING: return 0xffffff;
+      case RobotVisualMood.LOADING: return 0xffaa00;
+      case RobotVisualMood.PAINTING: return 0xff00cc;
+      default: return getThemeAccentHex();
     }
-  };
-
-  const createCyberpunkScene = (env: EnvironmentType) => {
-    clearEnvironment();
-    const group = environmentGroupRef.current;
-    const accent = getThemeAccentHex();
-    
-    if (env === EnvironmentType.NONE) {
-      const studioLight = new THREE.PointLight(accent, 80, 40);
-      studioLight.position.set(0, 15, 0);
-      group.add(studioLight);
-      return;
-    }
-
-    switch (env) {
-      case EnvironmentType.CYBER_DISTRICT:
-        for (let i = 0; i < 30; i++) {
-          const h = 10 + Math.random() * 30;
-          const w = 5 + Math.random() * 8;
-          const building = new THREE.Mesh(
-            new THREE.BoxGeometry(w, h, w),
-            new THREE.MeshStandardMaterial({ color: 0x010101, roughness: 0.05, metalness: 0.9 })
-          );
-          building.position.set((Math.random() - 0.5) * 150, h / 2 - 2, (Math.random() - 0.5) * 150);
-          if (building.position.length() < 25) building.position.multiplyScalar(3.5);
-          group.add(building);
-          
-          const glow = new THREE.PointLight(accent, 40, 25);
-          glow.position.copy(building.position);
-          glow.position.y += h/2;
-          group.add(glow);
-        }
-        break;
-
-      case EnvironmentType.MECHA_HANGAR:
-        for (let i = 0; i < 20; i++) {
-          const tower = new THREE.Mesh(
-            new THREE.BoxGeometry(8, 70, 8),
-            new THREE.MeshStandardMaterial({ color: 0x050505, metalness: 1.0, roughness: 0.1 })
-          );
-          tower.position.set((Math.random() - 0.5) * 120, 35, (Math.random() - 0.5) * 120);
-          group.add(tower);
-          
-          const alarm = new THREE.PointLight(accent, 30, 40);
-          alarm.position.set(tower.position.x, 10 + Math.random() * 30, tower.position.z);
-          group.add(alarm);
-        }
-        break;
-
-      case EnvironmentType.NEURAL_VOID:
-        for (let i = 0; i < 150; i++) {
-          const particle = new THREE.Mesh(
-            new THREE.SphereGeometry(Math.random() * 0.3),
-            new THREE.MeshBasicMaterial({ color: accent })
-          );
-          particle.position.set((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*100);
-          group.add(particle);
-        }
-        break;
-    }
-  };
-
-  const updateCanvasColors = () => {
-    if (!sceneRef.current || !groundRef.current) return;
-    sceneRef.current.background = new THREE.Color(0x000000);
-    sceneRef.current.fog = new THREE.Fog(0x000000, 5, 60);
-    createCyberpunkScene(environment);
   };
 
   const applyRobotSkins = () => {
     if (!modelRef.current) return;
     const accentColor = new THREE.Color(getThemeAccentHex());
+    const moodColor = new THREE.Color(getMoodColor());
     let bodyColor = new THREE.Color(color);
 
-    // Style-specific material properties
     let metalness = 1.0;
     let roughness = 0.05;
     let clearcoat = 1.0;
@@ -167,7 +111,6 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
         metalness = 1.0;
         roughness = 0.01;
         clearcoat = 1.0;
-        // Blend base color with a gold hue for better effect
         bodyColor.lerp(new THREE.Color(0xffd700), 0.5);
         break;
       case RobotStyle.STEALTH:
@@ -176,7 +119,6 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
         clearcoat = 0.0;
         reflectivity = 0.1;
         break;
-      case RobotStyle.CYBER:
       default:
         metalness = 1.0;
         roughness = 0.05;
@@ -189,10 +131,10 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
         const mesh = child as THREE.Mesh;
         const isEmissivePart = child.name.toLowerCase().includes('eye') || child.name.toLowerCase().includes('mouth');
         mesh.material = new THREE.MeshPhysicalMaterial({
-          color: isEmissivePart ? accentColor : bodyColor,
+          color: isEmissivePart ? moodColor : bodyColor,
           metalness: isEmissivePart ? 0 : metalness,
           roughness: isEmissivePart ? 0 : roughness,
-          emissive: isEmissivePart ? accentColor : new THREE.Color(0x000000),
+          emissive: isEmissivePart ? moodColor : new THREE.Color(0x000000),
           emissiveIntensity: isEmissivePart ? 15.0 : 0.0,
           envMap: envMapRef.current,
           reflectivity: isEmissivePart ? 0 : reflectivity,
@@ -201,20 +143,42 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
         });
       }
     });
-    if (robotLightRef.current) robotLightRef.current.color.set(accentColor);
+    if (robotLightRef.current) robotLightRef.current.color.set(moodColor);
   };
 
-  const playAnimation = (name: string) => {
-    const action = actionsRef.current[name];
-    if (action && activeActionRef.current !== action) {
-      if (activeActionRef.current) activeActionRef.current.fadeOut(0.3);
-      action.reset().fadeIn(0.3).play();
-      activeActionRef.current = action;
+  const playAnimation = (name: string, loop: boolean = false) => {
+    let clipName = name;
+    let speed = 1.0;
+
+    if (name === RobotAnimation.FLEX) { clipName = 'Punch'; speed = 0.5; }
+    if (name === RobotAnimation.DANCE_ROBOT) { clipName = 'Dance'; speed = 1.8; }
+    if (name === RobotAnimation.DANCE_BREAKDANCE) { clipName = 'Jump'; speed = 2.2; }
+    if (name === RobotAnimation.DANCE_FLOSS) { clipName = 'Wave'; speed = 3.0; }
+    if (name === RobotAnimation.DANCE_SHUFFLE) { clipName = 'Running'; speed = 2.5; }
+    if (name === RobotAnimation.DANCE_GROOVE) { clipName = 'Dance'; speed = 0.7; }
+
+    const action = actionsRef.current[clipName];
+    if (action) {
+      const isDance = name.startsWith('Dance_') || name === RobotAnimation.FLEX;
+      const shouldLoop = loop || ['Idle', 'Walking', 'Running', 'Dance'].includes(clipName) || isDance;
+      
+      if (activeActionRef.current !== action) {
+        if (activeActionRef.current) activeActionRef.current.fadeOut(0.3);
+        action.reset().setEffectiveTimeScale(speed).setLoop(shouldLoop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity).fadeIn(0.3).play();
+        activeActionRef.current = action;
+      }
     }
   };
 
   useImperativeHandle(ref, () => ({
-    triggerAnimation: (name: RobotAnimation) => playAnimation(name)
+    triggerAnimation: (name: RobotAnimation, loop: boolean = false) => playAnimation(name, loop),
+    resetView: () => {
+      if (cameraRef.current && controlsRef.current && modelRef.current) {
+        cameraRef.current.position.set(0, 8, 22);
+        controlsRef.current.target.copy(modelRef.current.position.clone().add(new THREE.Vector3(0, 1.5, 0)));
+        controlsRef.current.update();
+      }
+    }
   }));
 
   useEffect(() => {
@@ -256,8 +220,6 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
     scene.add(ground);
     groundRef.current = ground;
 
-    updateCanvasColors();
-
     const loader = new GLTFLoader();
     loader.load(MODEL_URL, (gltf) => {
       const model = gltf.scene;
@@ -283,11 +245,10 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
       if (mixerRef.current) mixerRef.current.update(dt);
       
       if (modelRef.current) {
-        robotLightRef.current?.position.set(
-          modelRef.current.position.x,
-          modelRef.current.position.y + 3,
-          modelRef.current.position.z + 2
-        );
+        const pulse = 1.0 + Math.sin(clock.elapsedTime * (mood === RobotVisualMood.EXCITED ? 10 : 2)) * 0.2;
+        if (robotLightRef.current) robotLightRef.current.intensity = 40 * pulse;
+        
+        robotLightRef.current?.position.set(modelRef.current.position.x, modelRef.current.position.y + 3, modelRef.current.position.z + 2);
         controls.target.lerp(modelRef.current.position.clone().add(new THREE.Vector3(0, 1.5, 0)), 0.1);
       }
       controls.update();
@@ -295,14 +256,10 @@ const RobotCanvas = forwardRef<RobotRef, RobotCanvasProps>(({ style, size, mood,
     };
     animate();
 
-    return () => {
-      renderer.dispose();
-      if (containerRef.current) containerRef.current.innerHTML = '';
-    };
+    return () => { renderer.dispose(); if (containerRef.current) containerRef.current.innerHTML = ''; };
   }, []);
 
-  useEffect(() => { updateCanvasColors(); }, [environment, theme]);
-  useEffect(() => { applyRobotSkins(); }, [style, color, theme]);
+  useEffect(() => { applyRobotSkins(); }, [style, color, theme, mood]);
   useEffect(() => { if (modelRef.current) modelRef.current.scale.set(size, size, size); }, [size]);
 
   return <div ref={containerRef} className="absolute inset-0 z-0 bg-black overflow-hidden" />;

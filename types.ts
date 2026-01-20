@@ -57,7 +57,23 @@ export enum SystemTheme {
   VULCAN = 'vulcan',
   COBALT = 'cobalt',
   TITAN = 'titan',
-  CRIMSON = 'crimson'
+  CRIMSON = 'crimson',
+  MAGMA = 'magma',
+  COBALT_STRIKE = 'cobalt_strike',
+  NEON_BONE = 'neon_bone',
+  NIGHTSHADE = 'nightshade',
+  SULFUR = 'sulfur',
+  NOIR_COMIC = 'noir_comic',
+  VIGILANTE = 'vigilante',
+  PULP_FICTION = 'pulp_fiction',
+  MUTANT_X = 'mutant_x',
+  COSMIC_RAYS = 'cosmic_rays',
+  STORM_GRAY_BLUE = 'storm_gray_blue',
+  SANGUINE_NOIR = 'sanguine_noir',
+  SLATE_PHOSPHOR = 'slate_phosphor',
+  DEEP_TRENCH = 'deep_trench',
+  CRIMSON_SHADOW = 'crimson_shadow',
+  INK_VERIDIAN = 'ink_veridian'
 }
 
 export enum EnvironmentType {
@@ -84,7 +100,6 @@ export enum RobotAnimation {
   PUNCH = 'Punch',
   THUMBSUP = 'ThumbsUp',
   DEATH = 'Death',
-  // Semantic Mappings
   CELEBRATE = 'Celebrate',
   PONDER = 'Ponder',
   ALERT = 'Alert',
@@ -92,7 +107,13 @@ export enum RobotAnimation {
   FLEX = 'Flex',
   SHOCK = 'Shock',
   SULK = 'Sulk',
-  GREET = 'Greet'
+  GREET = 'Greet',
+  // Dance Module
+  DANCE_ROBOT = 'Dance_Robot',
+  DANCE_BREAKDANCE = 'Dance_Breakdance',
+  DANCE_FLOSS = 'Dance_Floss',
+  DANCE_SHUFFLE = 'Dance_Shuffle',
+  DANCE_GROOVE = 'Dance_Groove'
 }
 
 export enum RobotVisualMood {
@@ -100,5 +121,10 @@ export enum RobotVisualMood {
   TALKING = 'talking',
   LOADING = 'loading',
   DANCING = 'dancing',
-  PAINTING = 'painting'
+  PAINTING = 'painting',
+  HAPPY = 'happy',
+  ANGRY = 'angry',
+  SAD = 'sad',
+  CURIOUS = 'curious',
+  EXCITED = 'excited'
 }

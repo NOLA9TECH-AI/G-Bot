@@ -24,7 +24,7 @@ import RobotCanvas, { RobotRef } from './components/RobotCanvas';
 const App: React.FC = () => {
   const [theme, setTheme] = useState<SystemTheme>(() => {
     const savedTheme = localStorage.getItem('g3_system_theme');
-    return (savedTheme as SystemTheme) || SystemTheme.HOOD;
+    return (savedTheme as SystemTheme) || SystemTheme.STORM_GRAY_BLUE;
   });
 
   const [environment, setEnvironment] = useState<EnvironmentType>(() => {
@@ -34,7 +34,6 @@ const App: React.FC = () => {
 
   const [robotColor, setRobotColor] = useState<string>(() => {
     const savedColor = localStorage.getItem('g3_robot_color');
-    // Default to Black (#000000) as requested
     return savedColor || '#000000';
   });
   
@@ -46,10 +45,12 @@ const App: React.FC = () => {
   const [robotSize, setRobotSize] = useState(1.0);
   const [transcriptionFontSize, setTranscriptionFontSize] = useState(24);
   const [robotMood, setRobotMood] = useState<RobotVisualMood>(RobotVisualMood.NONE);
+  const [sentimentMood, setSentimentMood] = useState<RobotVisualMood>(RobotVisualMood.NONE);
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [isQuickSettingsOpen, setIsQuickSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'CHAT' | 'CONFIG'>('CHAT');
   const [saveStatus, setSaveStatus] = useState<'IDLE' | 'SAVING' | 'SAVED'>('IDLE');
+  const [loopEmotes, setLoopEmotes] = useState(false);
   
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   
@@ -64,15 +65,55 @@ const App: React.FC = () => {
   const robotRef = useRef<RobotRef>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Sentiment Engine
+  const analyzeSentiment = (text: string) => {
+    const lowerText = text.toLowerCase();
+    
+    const patterns = {
+      [RobotVisualMood.EXCITED]: /awesome|great|incredible|amazing|wow|party|dance|excited|love it/i,
+      [RobotVisualMood.HAPPY]: /yes|happy|good|cool|nice|thanks|thank you|lol|haha|hehe/i,
+      [RobotVisualMood.ANGRY]: /no|hate|bad|angry|stupid|stop|kill|annoying|shut up|wrong/i,
+      [RobotVisualMood.SAD]: /sad|sorry|cry|lonely|pain|hurts|unhappy|depressed|dark/i,
+      [RobotVisualMood.CURIOUS]: /\?|how|why|what|who|where|ponder|think|maybe|search/i
+    };
+
+    for (const [mood, pattern] of Object.entries(patterns)) {
+      if (pattern.test(lowerText)) {
+        return mood as RobotVisualMood;
+      }
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      const detectedMood = analyzeSentiment(lastMsg.text);
+      if (detectedMood) {
+        setSentimentMood(detectedMood);
+        // Reactive reactive animation
+        switch (detectedMood) {
+          case RobotVisualMood.HAPPY: robotRef.current?.triggerAnimation(RobotAnimation.THUMBSUP); break;
+          case RobotVisualMood.EXCITED: robotRef.current?.triggerAnimation(RobotAnimation.CELEBRATE); break;
+          case RobotVisualMood.ANGRY: robotRef.current?.triggerAnimation(RobotAnimation.ALERT); break;
+          case RobotVisualMood.SAD: robotRef.current?.triggerAnimation(RobotAnimation.SULK); break;
+          case RobotVisualMood.CURIOUS: robotRef.current?.triggerAnimation(RobotAnimation.PONDER); break;
+        }
+      }
+    }
+  }, [messages]);
+
   useEffect(() => {
     if (isLoading) {
       setRobotMood(RobotVisualMood.LOADING);
     } else if (isBotTalking) {
       setRobotMood(RobotVisualMood.TALKING);
+    } else if (sentimentMood !== RobotVisualMood.NONE) {
+      setRobotMood(sentimentMood);
     } else {
       setRobotMood(RobotVisualMood.NONE);
     }
-  }, [isLoading, isBotTalking]);
+  }, [isLoading, isBotTalking, sentimentMood]);
 
   useEffect(() => {
     if (isBotTalking) {
@@ -164,7 +205,7 @@ const App: React.FC = () => {
             if (fc.name === 'set_robot_scale') setRobotSize(Math.max(0.5, Math.min(2.0, fc.args.scale)));
             if (fc.name === 'set_robot_color') setRobotColor(fc.args.color);
             if (fc.name === 'set_transcription_size') setTranscriptionFontSize(Math.max(12, Math.min(120, fc.args.size)));
-            if (fc.name === 'trigger_emote') robotRef.current?.triggerAnimation(fc.args.emote as RobotAnimation);
+            if (fc.name === 'trigger_emote') robotRef.current?.triggerAnimation(fc.args.emote as RobotAnimation, !!fc.args.loop);
           }
         },
         onTurnComplete: () => {
@@ -238,25 +279,23 @@ const App: React.FC = () => {
 
   const getThemeColors = (t: SystemTheme) => {
     switch (t) {
-      case SystemTheme.HOOD: return { accent: '#FFD700', secondary: '#00BFFF' };
-      case SystemTheme.TOXIC: return { accent: '#CCFF00', secondary: '#FF3300' };
-      case SystemTheme.FROST: return { accent: '#00FFFF', secondary: '#E0FFFF' };
-      case SystemTheme.BLOOD: return { accent: '#FF0000', secondary: '#660000' };
-      case SystemTheme.VOID: return { accent: '#9400D3', secondary: '#2D004B' };
-      case SystemTheme.SUNSET: return { accent: '#FF4500', secondary: '#FFD700' };
-      case SystemTheme.EMERALD: return { accent: '#50C878', secondary: '#FFD700' };
-      case SystemTheme.MIDNIGHT: return { accent: '#191970', secondary: '#C0C0C0' };
-      case SystemTheme.CYBERPUNK: return { accent: '#39ff14', secondary: '#bc13fe' };
-      case SystemTheme.PHANTOM: return { accent: '#8a2be2', secondary: '#222222' };
+      case SystemTheme.STORM_GRAY_BLUE: return { accent: '#7096ff', secondary: '#1a1e26' };
+      case SystemTheme.SANGUINE_NOIR: return { accent: '#990000', secondary: '#111111' };
+      case SystemTheme.SLATE_PHOSPHOR: return { accent: '#00ff99', secondary: '#1a1c1e' };
+      case SystemTheme.DEEP_TRENCH: return { accent: '#00e5ff', secondary: '#000814' };
+      case SystemTheme.CRIMSON_SHADOW: return { accent: '#ff1e1e', secondary: '#000000' };
+      case SystemTheme.INK_VERIDIAN: return { accent: '#00ffaa', secondary: '#080a08' };
       case SystemTheme.ONYX: return { accent: '#ffffff', secondary: '#111111' };
-      case SystemTheme.NEBULA: return { accent: '#ff00ff', secondary: '#120042' };
-      case SystemTheme.GHOST: return { accent: '#dddddd', secondary: '#ffffff' };
-      // Handle newly added themes for visual consistency
-      case SystemTheme.CARBON: return { accent: '#a1a1aa', secondary: '#ffffff' };
-      case SystemTheme.VULCAN: return { accent: '#f97316', secondary: '#ff0000' };
-      case SystemTheme.COBALT: return { accent: '#2563eb', secondary: '#ffffff' };
-      case SystemTheme.TITAN: return { accent: '#d4af37', secondary: '#ffffff' };
-      case SystemTheme.CRIMSON: return { accent: '#991b1b', secondary: '#ffffff' };
+      case SystemTheme.PHANTOM: return { accent: '#8a2be2', secondary: '#222222' };
+      case SystemTheme.TOXIC: return { accent: '#CCFF00', secondary: '#FF3300' };
+      case SystemTheme.VIGILANTE: return { accent: '#ffd700', secondary: '#001f3f' };
+      case SystemTheme.PULP_FICTION: return { accent: '#ff4d4d', secondary: '#fffdd0' };
+      case SystemTheme.MUTANT_X: return { accent: '#adff2f', secondary: '#1a1a1a' };
+      case SystemTheme.MAGMA: return { accent: '#ff4500', secondary: '#000000' };
+      case SystemTheme.COBALT_STRIKE: return { accent: '#2e5bff', secondary: '#c0c0c0' };
+      case SystemTheme.NEON_BONE: return { accent: '#f5f5f5', secondary: '#0a0a0a' };
+      case SystemTheme.NIGHTSHADE: return { accent: '#4b0082', secondary: '#000000' };
+      case SystemTheme.SULFUR: return { accent: '#dfff00', secondary: '#333333' };
       default: return { accent: '#39ff14', secondary: '#bc13fe' };
     }
   };
@@ -272,10 +311,18 @@ const App: React.FC = () => {
       <div className="relative z-10 flex-1 flex flex-col p-4 md:p-8 pointer-events-none h-full overflow-hidden">
         <header className="pointer-events-auto flex justify-between items-start w-full mb-2">
           <div className="flex flex-col gap-0.5">
-            <h1 className="font-marker text-xl md:text-3xl -rotate-1 origin-left neon-text" style={{ color: accentColor }}>G-3 CANVAS</h1>
+            <h1 className="font-marker text-xl md:text-3xl -rotate-1 origin-left neon-text" style={{ color: accentColor }}>G-3 AI COMPANION</h1>
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex gap-2">
+              <button 
+                onClick={() => robotRef.current?.resetView()} 
+                title="Reset Camera"
+                className="p-2 rounded-full border-2 font-bold pointer-events-auto shadow-lg bg-black/60 hover:bg-white hover:text-black transition-all" 
+                style={{ borderColor: accentColor, color: accentColor }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M3 12h3m12 0h3M12 3v3m0 12v3"></path></svg>
+              </button>
               <button onClick={() => setIsQuickSettingsOpen(!isQuickSettingsOpen)} className="p-2 rounded-full border-2 font-bold pointer-events-auto shadow-lg bg-black/60 hover:bg-white hover:text-black transition-all" style={{ borderColor: accentColor, color: accentColor }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
               </button>
@@ -288,9 +335,8 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            {/* Collapsible Quick Settings Panel */}
             {isQuickSettingsOpen && (
-              <div className="pointer-events-auto animate-in slide-in-from-top duration-300 w-64 p-4 bg-black/90 backdrop-blur-3xl border-2 rounded-2xl shadow-2xl space-y-4" style={{ borderColor: accentColor }}>
+              <div className="pointer-events-auto animate-in slide-in-from-top duration-300 w-64 p-4 bg-black/95 backdrop-blur-3xl border-2 rounded-2xl shadow-2xl space-y-4" style={{ borderColor: accentColor }}>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-black uppercase opacity-60">Neural Scale</label>
@@ -305,14 +351,15 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase opacity-60">Hot Themes</label>
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {[SystemTheme.ONYX, SystemTheme.PHANTOM, SystemTheme.TOXIC, SystemTheme.FROST, SystemTheme.NEBULA].map(t => (
+                  <label className="text-[10px] font-black uppercase opacity-60">Elite Themes</label>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {[SystemTheme.STORM_GRAY_BLUE, SystemTheme.SANGUINE_NOIR, SystemTheme.SLATE_PHOSPHOR, SystemTheme.DEEP_TRENCH, SystemTheme.CRIMSON_SHADOW, SystemTheme.INK_VERIDIAN].map(t => (
                       <button 
                         key={t}
                         onClick={() => setTheme(t)}
-                        className={`w-full aspect-square rounded border transition-all ${theme === t ? 'border-white scale-110' : 'border-white/20 hover:border-white/50'}`}
+                        className={`w-full aspect-square rounded border-2 transition-all ${theme === t ? 'border-white scale-110' : 'border-white/10 hover:border-white/50'}`}
                         style={{ backgroundColor: getThemeColors(t).accent }}
+                        title={t.toUpperCase()}
                       />
                     ))}
                   </div>
@@ -335,7 +382,7 @@ const App: React.FC = () => {
         <div className="mt-auto w-full flex flex-col items-center justify-end pointer-events-none pb-4">
           <button onClick={() => { setIsChatVisible(true); setActiveTab('CHAT'); }} className="pointer-events-auto group relative mb-4">
               <div className="absolute inset-0 blur-xl opacity-40 group-hover:opacity-100 transition-opacity rounded-full" style={{ backgroundColor: accentColor }}></div>
-              <div className="relative bg-black/80 border-2 px-10 py-4 rounded-full font-marker tracking-[0.3em] uppercase transition-all hover:scale-105 active:scale-95 shadow-2xl" style={{ borderColor: accentColor, color: accentColor }}>
+              <div className={`relative bg-black/80 border-2 px-10 py-4 rounded-full font-marker tracking-[0.3em] uppercase transition-all hover:scale-105 active:scale-95 shadow-2xl ${loopEmotes ? 'animate-pulse' : ''}`} style={{ borderColor: accentColor, color: accentColor }}>
                  NEURAL LINK
               </div>
           </button>
@@ -393,17 +440,17 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+                  <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar uppercase">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-3">
                         <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">System Theme</label>
-                        <select value={theme} onChange={(e) => setTheme(e.target.value as SystemTheme)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer">
+                        <select value={theme} onChange={(e) => setTheme(e.target.value as SystemTheme)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
                           {Object.values(SystemTheme).map(t => <option key={t} value={t} className="bg-zinc-900">{t.toUpperCase()}</option>)}
                         </select>
                       </div>
                       <div className="space-y-3">
-                        <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">Art Engine Style</label>
-                        <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer">
+                        <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">Art Style</label>
+                        <select value={artStyle} onChange={(e) => setArtStyle(e.target.value as ArtStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
                           {Object.values(ArtStyle).map(s => <option key={s} value={s} className="bg-zinc-900">{s.toUpperCase()}</option>)}
                         </select>
                       </div>
@@ -412,16 +459,25 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-3">
                         <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">Armor Style</label>
-                        <select value={robotStyle} onChange={(e) => setRobotStyle(e.target.value as RobotStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer">
+                        <select value={robotStyle} onChange={(e) => setRobotStyle(e.target.value as RobotStyle)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
                           {Object.values(RobotStyle).map(s => <option key={s} value={s} className="bg-zinc-900">{s.toUpperCase()}</option>)}
                         </select>
                       </div>
                       <div className="space-y-3">
                         <label className="text-xs font-black uppercase tracking-widest opacity-60 block ml-1">Force Emote</label>
-                        <select onChange={(e) => robotRef.current?.triggerAnimation(e.target.value as RobotAnimation)} className="w-full bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer">
-                          <option value="" className="bg-zinc-900">TRIGGER EMOTE...</option>
-                          {Object.values(RobotAnimation).map(anim => <option key={anim} value={anim} className="bg-zinc-900">{anim.toUpperCase()}</option>)}
-                        </select>
+                        <div className="flex gap-2">
+                           <select onChange={(e) => robotRef.current?.triggerAnimation(e.target.value as RobotAnimation, loopEmotes)} className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-white/40 transition-all appearance-none cursor-pointer uppercase">
+                             <option value="" className="bg-zinc-900">TRIGGER EMOTE...</option>
+                             {Object.values(RobotAnimation).map(anim => <option key={anim} value={anim} className="bg-zinc-900">{anim.toUpperCase()}</option>)}
+                           </select>
+                           <button 
+                             onClick={() => setLoopEmotes(!loopEmotes)} 
+                             className={`px-4 rounded-xl border-2 font-black transition-all ${loopEmotes ? 'bg-white text-black border-white' : 'border-white/20 opacity-50'}`}
+                             title="Toggle Animation Looping"
+                           >
+                             ∞
+                           </button>
+                        </div>
                       </div>
                     </div>
 
